@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface-muted text-ink-800 antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+*:focus-visible {
+  @apply outline-none ring-0 ring-offset-0;
+}
+
+::selection {
+  background: rgb(16 185 129 / 0.2);
+}

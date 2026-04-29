@@ -162,22 +162,33 @@ export default function PowerFeedClient() {
 
   if (noProduct) return <EmptyState />;
 
+  const filtersDrawerProps = {
+    items: visibleItems,
+    targets,
+    view,
+    setView,
+    subreddit: subredditFilter,
+    setSubreddit,
+  };
+
   return (
-    <div className="flex h-screen min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col lg:h-screen">
       <Header title="Power Feed" searchPlaceholder="Search posts, keywords..." />
       <main className="flex min-h-0 flex-1 overflow-hidden">
-        <FiltersPanel
-          items={visibleItems}
-          targets={targets}
-          view={view}
-          setView={setView}
-          subreddit={subredditFilter}
-          setSubreddit={setSubreddit}
+        {/* Desktop sidebar */}
+        <div className="hidden lg:block">
+          <FiltersPanel {...filtersDrawerProps} />
+        </div>
+        {/* Mobile drawer */}
+        <FiltersDrawer
+          open={isFiltersOpen}
+          onClose={() => setIsFiltersOpen(false)}
+          {...filtersDrawerProps}
         />
 
         <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b border-ink-100 bg-white px-6 py-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
                 <button
                   onClick={() => setSort("latest")}
@@ -203,7 +214,7 @@ export default function PowerFeedClient() {
               {scanningSub && (
                 <div className="flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-700">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-                  Scanning r/{scanningSub}…
+                  <span className="hidden sm:inline">Scanning </span>r/{scanningSub}…
                 </div>
               )}
             </div>
@@ -212,7 +223,8 @@ export default function PowerFeedClient() {
               className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50"
             >
               <IconFilter className="h-3.5 w-3.5" />
-              Filters: {timeRangeLabel(timeRange)}
+              <span className="hidden sm:inline">Filters: </span>
+              {timeRangeLabel(timeRange)}
             </button>
           </div>
           {isFiltersOpen && (
@@ -298,21 +310,23 @@ function isInTimeRange(iso: string, range: TimeRange): boolean {
   return now - created <= maxAgeMs;
 }
 
-function FiltersPanel({
-  items,
-  targets,
-  view,
-  setView,
-  subreddit,
-  setSubreddit,
-}: {
+type FiltersProps = {
   items: ScoredPost[];
   targets: SubredditTarget[];
   view: "all" | "high-intent" | "saved";
   setView: (v: "all" | "high-intent" | "saved") => void;
   subreddit: string | null;
   setSubreddit: (name: string | null) => void;
-}) {
+};
+
+function FiltersBody({
+  items,
+  targets,
+  view,
+  setView,
+  subreddit,
+  setSubreddit,
+}: FiltersProps) {
   const counts = {
     all: items.length,
     highIntent: items.filter((i) => i.intentScore >= 70).length,
@@ -324,8 +338,7 @@ function FiltersPanel({
   ];
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-ink-100 bg-white">
-      <div className="space-y-5 overflow-y-auto p-5">
+    <div className="space-y-5 overflow-y-auto p-5">
         <div>
           <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
             Views
@@ -400,7 +413,57 @@ function FiltersPanel({
           </div>
         </div>
       </div>
+  );
+}
+
+function FiltersPanel(props: FiltersProps) {
+  return (
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-ink-100 bg-white">
+      <FiltersBody {...props} />
     </aside>
+  );
+}
+
+function FiltersDrawer({
+  open,
+  onClose,
+  ...props
+}: FiltersProps & { open: boolean; onClose: () => void }) {
+  return (
+    <div
+      className={`fixed inset-0 z-40 lg:hidden ${open ? "" : "pointer-events-none"}`}
+      aria-hidden={!open}
+    >
+      <div
+        onClick={onClose}
+        className={`absolute inset-0 bg-ink-900/40 transition-opacity duration-200 ${
+          open ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filters"
+        className={`absolute left-0 top-0 h-full w-72 max-w-[85vw] overflow-hidden border-r border-ink-100 bg-white shadow-pop transition-transform duration-200 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3">
+          <span className="text-sm font-semibold text-ink-900">Filters</span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close filters"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100"
+          >
+            <IconClose className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="h-[calc(100%-49px)] overflow-y-auto">
+          <FiltersBody {...props} />
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -563,7 +626,12 @@ function StrategyPanel({
   }
 
   return (
-    <aside className="hidden h-full min-h-0 w-[420px] shrink-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:flex">
+    <aside
+      className={
+        // Mobile: fullscreen overlay; Desktop: sidebar.
+        "fixed inset-0 z-40 flex min-h-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
+      }
+    >
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">
           <Badge tone="brand" icon={<IconSparkles className="h-3 w-3" />}>

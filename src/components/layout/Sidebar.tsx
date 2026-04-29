@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
 import { Avatar } from "@/components/ui/Avatar";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { useAppShell } from "@/components/layout/AppShell";
 import {
   IconGrid,
   IconLayers,
@@ -11,6 +13,7 @@ import {
   IconChart,
   IconSparkles,
   IconSettings,
+  IconClose,
 } from "@/components/ui/Icons";
 import type { ReactNode } from "react";
 
@@ -29,16 +32,29 @@ const NAV: NavItem[] = [
   { href: "/settings", label: "Settings", icon: <IconSettings className="h-4 w-4" /> },
 ];
 
-export function Sidebar() {
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname() ?? "";
+  const { user } = useAuthUser();
+  const displayName = user?.fullName ?? user?.email ?? "Account";
+  const displayEmail = user?.email ?? "";
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-ink-200/60 bg-white md:flex">
-      <div className="px-5 pt-6">
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between px-5 pt-6">
         <Logo />
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100 md:hidden"
+          >
+            <IconClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <nav className="mt-6 flex-1 px-3">
+      <nav className="mt-6 flex-1 overflow-y-auto px-3">
         {NAV.map((item) => {
           const active =
             pathname === item.href ||
@@ -69,20 +85,63 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="m-4 rounded-xl border border-ink-200/60 bg-surface-muted p-3">
+      <Link
+        href="/settings?tab=account"
+        className="m-4 block rounded-xl border border-ink-200/60 bg-surface-muted p-3 transition hover:bg-ink-50"
+      >
         <div className="flex items-center gap-3">
-          <Avatar name="Alex Mercer" size="sm" />
+          <Avatar name={displayName} src={user?.avatarUrl} size="sm" />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-ink-900">
-              Alex Mercer
+              {displayName}
             </div>
-            <div className="truncate text-[11px] text-ink-500">
-              alex@redditleads.io
-            </div>
+            {displayEmail && (
+              <div className="truncate text-[11px] text-ink-500">
+                {displayEmail}
+              </div>
+            )}
           </div>
         </div>
+      </Link>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  const { navOpen, closeNav } = useAppShell();
+
+  return (
+    <>
+      {/* Desktop: sticky aside */}
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 overflow-y-auto border-r border-ink-200/60 bg-white md:block">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile: overlay drawer */}
+      <div
+        className={`fixed inset-0 z-50 md:hidden ${navOpen ? "" : "pointer-events-none"}`}
+        aria-hidden={!navOpen}
+      >
+        {/* Scrim */}
+        <div
+          onClick={closeNav}
+          className={`absolute inset-0 bg-ink-900/40 transition-opacity duration-200 ${
+            navOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        {/* Panel */}
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          className={`absolute left-0 top-0 h-full w-72 max-w-[85vw] border-r border-ink-200/60 bg-white shadow-pop transition-transform duration-200 ${
+            navOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <SidebarContent onClose={closeNav} />
+        </aside>
       </div>
-    </aside>
+    </>
   );
 }
 

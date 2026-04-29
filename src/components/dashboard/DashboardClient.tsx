@@ -19,7 +19,6 @@ import {
   IconArrowRight,
 } from "@/components/ui/Icons";
 import type {
-  CampaignHealth,
   IntelligenceFeedItem,
   LeadVelocityPoint,
 } from "@/types";
@@ -36,7 +35,6 @@ interface DashboardData {
   };
   velocity: LeadVelocityPoint[];
   intelligenceFeed: IntelligenceFeedItem[];
-  campaignHealth: CampaignHealth[];
 }
 
 type Range = "7D" | "30D" | "YTD";
@@ -71,8 +69,8 @@ export default function DashboardClient() {
         title="Intelligence Hub"
         searchPlaceholder="Search leads, posts..."
       />
-      <main className="flex-1 space-y-6 px-6 py-6 md:px-8 md:py-8">
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <main className="flex-1 space-y-5 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6 md:px-8 md:py-8">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           <MetricCard
             label="High-Intent Leads"
             value={data?.metrics.highIntentCount ?? 0}
@@ -97,35 +95,11 @@ export default function DashboardClient() {
             trendTone="up"
             icon={<IconFlame className="h-4 w-4" />}
           />
-          <MetricCard
-            label="AI Credits"
-            value={data?.metrics.aiCredits ?? 0}
-            icon={<IconSparkles className="h-4 w-4" />}
-            trend={
-              (data?.metrics.aiCredits ?? 0) <
-              (data?.metrics.aiCreditsMax ?? 0) * 0.3
-                ? "⚠ Refill soon"
-                : "Healthy"
-            }
-            trendTone={
-              (data?.metrics.aiCredits ?? 0) <
-              (data?.metrics.aiCreditsMax ?? 0) * 0.3
-                ? "danger"
-                : "up"
-            }
-            radial={
-              data
-                ? Math.round(
-                    (data.metrics.aiCredits / data.metrics.aiCreditsMax) * 100,
-                  )
-                : undefined
-            }
-          />
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
-            <div className="flex items-start justify-between px-6 pt-6">
+            <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pt-6">
               <div>
                 <h2 className="text-base font-semibold text-ink-900">
                   Lead Velocity
@@ -134,7 +108,7 @@ export default function DashboardClient() {
                   Volume of qualified prospects identified over time
                 </p>
               </div>
-              <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs">
+              <div className="flex self-start rounded-lg bg-ink-100 p-0.5 text-xs">
                 {(["7D", "30D", "YTD"] as const).map((r) => (
                   <button
                     key={r}
@@ -150,7 +124,7 @@ export default function DashboardClient() {
                 ))}
               </div>
             </div>
-            <div className="px-2 pb-4">
+            <div className="px-1 pb-4 sm:px-2">
               <AreaChart
                 data={(data?.velocity ?? []).map((v) => ({
                   label: new Date(v.date).toLocaleDateString(undefined, {
@@ -158,19 +132,19 @@ export default function DashboardClient() {
                   }),
                   value: v.count,
                 }))}
-                height={260}
+                height={220}
               />
             </div>
           </Card>
 
           <Card className="ring-1 ring-brand-100">
-            <div className="flex items-center gap-2 px-5 pt-5">
+            <div className="flex items-center gap-2 px-4 pt-4 sm:px-5 sm:pt-5">
               <IconSparkles className="h-4 w-4 text-brand-600" />
               <h2 className="text-base font-semibold text-ink-900">
                 Intelligence Feed
               </h2>
             </div>
-            <div className="space-y-3 px-4 pb-4 pt-4">
+            <div className="space-y-3 px-3 pb-4 pt-3 sm:px-4 sm:pt-4">
               {(data?.intelligenceFeed ?? []).map((item) => (
                 <IntelligenceCard key={item.id} item={item} />
               ))}
@@ -183,33 +157,6 @@ export default function DashboardClient() {
           </Card>
         </section>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink-900">
-              Campaign Health
-            </h2>
-            <Link
-              href="/leads"
-              className="flex items-center gap-1 text-xs font-semibold text-ink-500 hover:text-ink-800"
-            >
-              View All
-              <IconArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {(data?.campaignHealth ?? []).map((c) => (
-              <Card key={c.label} className="flex items-center gap-4 p-5">
-                <RadialProgress value={c.percent} size={64} strokeWidth={7} />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-ink-900">
-                    {c.label}
-                  </div>
-                  <div className="truncate text-xs text-ink-500">{c.note}</div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
       </main>
     </>
   );
@@ -321,8 +268,8 @@ function EmptyState() {
   return (
     <>
       <Header title="Intelligence Hub" />
-      <main className="flex-1 px-8 py-12">
-        <Card className="mx-auto max-w-2xl p-10 text-center">
+      <main className="flex-1 px-4 py-8 sm:px-8 sm:py-12">
+        <Card className="mx-auto max-w-2xl p-6 text-center sm:p-10">
           <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
             <IconAlert className="h-6 w-6" />
           </div>

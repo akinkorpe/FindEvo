@@ -98,8 +98,8 @@ export default function LeadsClient() {
   return (
     <>
       <Header title="CRM Leads" searchPlaceholder="Search leads..." />
-      <main className="flex-1 space-y-6 px-6 py-6 md:px-8 md:py-8">
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <main className="flex-1 space-y-5 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6 md:px-8 md:py-8">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <StatCard
             label="Total Active"
             value={stats.totalActive}
@@ -123,7 +123,7 @@ export default function LeadsClient() {
         </section>
 
         <section>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink-900">
               Recent Activity
             </h2>
@@ -394,10 +394,10 @@ function LeadDrawer({
   return (
     <div className="fixed inset-0 z-40 flex">
       <div
-        className="flex-1 bg-ink-900/20 backdrop-blur-sm"
+        className="hidden flex-1 bg-ink-900/20 backdrop-blur-sm sm:block"
         onClick={onClose}
       />
-      <aside className="flex w-full max-w-md flex-col border-l border-ink-100 bg-white shadow-pop">
+      <aside className="flex w-full flex-col border-l border-ink-100 bg-white shadow-pop sm:max-w-md">
         <div className="flex items-start justify-between border-b border-ink-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <Avatar name={lead.redditUsername} size="md" />
@@ -568,8 +568,8 @@ function EmptyShell() {
   return (
     <>
       <Header title="CRM Leads" />
-      <main className="flex-1 px-8 py-12">
-        <Card className="mx-auto max-w-2xl p-10 text-center">
+      <main className="flex-1 px-4 py-8 sm:px-8 sm:py-12">
+        <Card className="mx-auto max-w-2xl p-6 text-center sm:p-10">
           <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
             <IconAlert className="h-6 w-6" />
           </div>

@@ -1,5 +1,31 @@
 import type { Metadata } from "next";
+import { Geist, Geist_Mono, Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
+
+const geist = Geist({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist",
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-plus-jakarta",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist-mono",
+});
 
 export const metadata: Metadata = {
   title: "RedditLeads",
@@ -13,7 +39,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geist.variable} ${plusJakarta.variable} ${inter.variable} ${geistMono.variable}`}
+    >
+      <head>
+        <script
+          // Sync theme before first paint to prevent FOUC.
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -1,5 +1,10 @@
+"use client";
+
+import { useState } from "react";
+
 interface Props {
   name: string;
+  src?: string | null;
   size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }
@@ -27,7 +32,8 @@ function hashIdx(str: string): number {
   return h % PALETTE.length;
 }
 
-export function Avatar({ name, size = "md", className = "" }: Props) {
+export function Avatar({ name, src, size = "md", className = "" }: Props) {
+  const [imgFailed, setImgFailed] = useState(false);
   const initials = name
     .replace(/^[ru]\//i, "")
     .split(/[\s_-]+/)
@@ -36,6 +42,20 @@ export function Avatar({ name, size = "md", className = "" }: Props) {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
   const bg = PALETTE[hashIdx(name)];
+
+  if (src && !imgFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name}
+        referrerPolicy="no-referrer"
+        onError={() => setImgFailed(true)}
+        className={`inline-block rounded-full object-cover ${sizes[size]} ${className}`}
+      />
+    );
+  }
+
   return (
     <div
       className={`inline-flex items-center justify-center rounded-full text-white font-semibold ${bg} ${sizes[size]} ${className}`}

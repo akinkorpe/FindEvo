@@ -17,7 +17,8 @@ export function RadialProgress({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const stroke = tone === "brand" ? "#10B981" : "#64748B";
+  const stroke =
+    tone === "brand" ? "var(--chart-line)" : "var(--chart-axis)";
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
@@ -26,7 +27,7 @@ export function RadialProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#E2E8F0"
+          stroke="var(--chart-grid)"
           strokeWidth={strokeWidth}
           fill="none"
         />

@@ -64,8 +64,16 @@ export function AreaChart({
     >
       <defs>
         <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10B981" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+          <stop
+            offset="0%"
+            stopColor="var(--chart-area-stop)"
+            stopOpacity="0.35"
+          />
+          <stop
+            offset="100%"
+            stopColor="var(--chart-area-stop)"
+            stopOpacity="0"
+          />
         </linearGradient>
       </defs>
 
@@ -79,7 +87,7 @@ export function AreaChart({
               x2={width - padX}
               y1={y}
               y2={y}
-              stroke="#E2E8F0"
+              stroke="var(--chart-grid)"
               strokeDasharray="3 3"
             />
             <text
@@ -87,7 +95,7 @@ export function AreaChart({
               y={y + 3}
               textAnchor="end"
               fontSize="10"
-              fill="#94A3B8"
+              fill="var(--chart-axis)"
             >
               {tickVal}
             </text>
@@ -99,7 +107,7 @@ export function AreaChart({
       <path
         d={linePath}
         fill="none"
-        stroke="#10B981"
+        stroke="var(--chart-line)"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -107,7 +115,15 @@ export function AreaChart({
 
       {showDots &&
         pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3" fill="#fff" stroke="#10B981" strokeWidth="2" />
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r="3"
+            fill="var(--chart-dot-fill)"
+            stroke="var(--chart-line)"
+            strokeWidth="2"
+          />
         ))}
 
       {pts.map((p, i) => (
@@ -117,7 +133,7 @@ export function AreaChart({
           y={height - 8}
           textAnchor="middle"
           fontSize="10"
-          fill="#94A3B8"
+          fill="var(--chart-axis)"
         >
           {p.label}
         </text>

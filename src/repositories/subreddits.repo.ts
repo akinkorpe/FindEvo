@@ -81,6 +81,31 @@ export async function removeTarget(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateTarget(
+  id: string,
+  patch: { name?: string; priority?: SubredditPriority },
+): Promise<SubredditTarget> {
+  const updatePatch: { name?: string; priority?: SubredditPriority } = {};
+  if (patch.name !== undefined) {
+    updatePatch.name = patch.name.replace(/^r\//i, "").trim();
+  }
+  if (patch.priority !== undefined) {
+    updatePatch.priority = patch.priority;
+  }
+  if (!updatePatch.name && !updatePatch.priority) {
+    throw new Error("No valid patch provided");
+  }
+
+  const { data, error } = await getSupabaseServer()
+    .from("subreddits")
+    .update(updatePatch)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapSubredditTarget(data);
+}
+
 export async function listByName(name: string): Promise<SubredditTarget[]> {
   const clean = name.replace(/^r\//i, "");
   const { data, error } = await getSupabaseServer()

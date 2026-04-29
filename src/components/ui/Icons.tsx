@@ -111,6 +111,14 @@ export const IconClose = base(
   </>,
 );
 
+export const IconMenu = base(
+  <>
+    <path d="M3 6h18" />
+    <path d="M3 12h18" />
+    <path d="M3 18h18" />
+  </>,
+);
+
 export const IconCheck = base(<path d="M5 12l5 5L20 7" />);
 
 export const IconFlame = base(
@@ -183,5 +191,23 @@ export const IconMegaphone = base(
   <>
     <path d="M3 10v4a1 1 0 0 0 1 1h3l7 4V5L7 9H4a1 1 0 0 0-1 1z" />
     <path d="M16 8a4 4 0 0 1 0 8" />
+  </>,
+);
+
+export const IconSun = base(
+  <>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+  </>,
+);
+
+export const IconMoon = base(
+  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
+);
+
+export const IconMonitor = base(
+  <>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
   </>,
 );

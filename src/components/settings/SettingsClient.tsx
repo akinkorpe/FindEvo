@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Toggle } from "@/components/ui/Toggle";
 import {
   IconAlert,
   IconArrowRight,
-  IconBell,
   IconCheck,
   IconClose,
   IconLink,
@@ -22,6 +22,10 @@ import {
   IconSparkles,
   IconUser,
 } from "@/components/ui/Icons";
+import { Avatar } from "@/components/ui/Avatar";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { signOut } from "@/lib/auth";
 import type {
   Product,
   SubredditPriority,
@@ -29,19 +33,41 @@ import type {
   WorkspaceSettings,
 } from "@/types";
 
-type Tab = "product" | "subreddits" | "notifications" | "account";
+type Tab = "product" | "subreddits" | "account";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "product", label: "Product Profile", icon: <IconSparkles className="h-4 w-4" /> },
   { key: "subreddits", label: "Subreddits & Rules", icon: <IconSettings className="h-4 w-4" /> },
-  { key: "notifications", label: "Bildirimler", icon: <IconBell className="h-4 w-4" /> },
-  { key: "account", label: "Hesap", icon: <IconUser className="h-4 w-4" /> },
+  { key: "account", label: "Account", icon: <IconUser className="h-4 w-4" /> },
 ];
 
+const VALID_TABS: Tab[] = ["product", "subreddits", "account"];
+
 export default function SettingsClient() {
+  const params = useSearchParams();
+  const initialTab = (() => {
+    const t = params?.get("tab");
+    return t && (VALID_TABS as string[]).includes(t) ? (t as Tab) : "subreddits";
+  })();
+
+  const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [noProduct, setNoProduct] = useState(false);
-  const [tab, setTab] = useState<Tab>("subreddits");
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  function changeTab(next: Tab) {
+    setTab(next);
+    router.replace(`/settings?tab=${next}`, { scroll: false });
+  }
+
+  // URL ?tab=... değişirse senkronize et (örn. header'daki account ikonu).
+  useEffect(() => {
+    const t = params?.get("tab");
+    if (t && (VALID_TABS as string[]).includes(t) && t !== tab) {
+      setTab(t as Tab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   useEffect(() => {
     (async () => {
@@ -59,14 +85,14 @@ export default function SettingsClient() {
   return (
     <>
       <Header title="Settings" />
-      <main className="flex-1 px-6 py-6 md:px-8 md:py-8">
-        <div className="mx-auto max-w-5xl space-y-6">
-          <nav className="flex gap-1 overflow-x-auto border-b border-ink-100">
+      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+          <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-ink-100 px-4 sm:mx-0 sm:px-0">
             {TABS.map((t) => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition ${
+                onClick={() => changeTab(t.key)}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition sm:px-4 ${
                   tab === t.key
                     ? "border-brand-500 text-ink-900"
                     : "border-transparent text-ink-500 hover:text-ink-800"
@@ -82,7 +108,6 @@ export default function SettingsClient() {
 
           {product && tab === "product" && <ProductProfileTab product={product} onChange={setProduct} />}
           {product && tab === "subreddits" && <SubredditsTab product={product} />}
-          {product && tab === "notifications" && <NotificationsTab product={product} />}
           {product && tab === "account" && <AccountTab product={product} />}
         </div>
       </main>
@@ -202,23 +227,35 @@ function ProductProfileTab({
 function SubredditsTab({ product }: { product: Product }) {
   const [targets, setTargets] = useState<SubredditTarget[]>([]);
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
-  const [original, setOriginal] = useState<WorkspaceSettings | null>(null);
   const [newName, setNewName] = useState("");
   const [newPriority, setNewPriority] = useState<SubredditPriority>("standard");
+  const [targetDrafts, setTargetDrafts] = useState<
+    Record<string, { name: string; priority: SubredditPriority }>
+  >({});
   const [adding, setAdding] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savingTargets, setSavingTargets] = useState(false);
+  const [targetsSaved, setTargetsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/subreddits?productId=${product.id}`)
       .then((r) => r.json())
-      .then((j) => setTargets(j.targets ?? []));
+      .then((j) => {
+        const nextTargets = (j.targets ?? []) as SubredditTarget[];
+        setTargets(nextTargets);
+        setTargetDrafts(
+          Object.fromEntries(
+            nextTargets.map((t) => [
+              t.id,
+              { name: t.name, priority: t.priority },
+            ]),
+          ),
+        );
+      });
     fetch(`/api/settings?productId=${product.id}`)
       .then((r) => r.json())
       .then((j) => {
         setSettings(j.settings);
-        setOriginal(j.settings);
       });
   }, [product.id]);
 
@@ -237,6 +274,10 @@ function SubredditsTab({ product }: { product: Product }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "failed");
       setTargets((prev) => [...prev, json.target]);
+      setTargetDrafts((prev) => ({
+        ...prev,
+        [json.target.id]: { name: json.target.name, priority: json.target.priority },
+      }));
       setNewName("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "error");
@@ -247,50 +288,78 @@ function SubredditsTab({ product }: { product: Product }) {
 
   async function removeTarget(id: string) {
     const res = await fetch(`/api/subreddits?id=${id}`, { method: "DELETE" });
-    if (res.ok) setTargets((prev) => prev.filter((t) => t.id !== id));
-  }
-
-  const dirty =
-    settings !== null &&
-    original !== null &&
-    (settings.strictProfanityFilter !== original.strictProfanityFilter ||
-      settings.requireCompetitorMention !== original.requireCompetitorMention ||
-      settings.minAuthorKarma !== original.minAuthorKarma ||
-      settings.maxPostAgeHours !== original.maxPostAgeHours);
-
-  async function save() {
-    if (!settings) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: product.id,
-          patch: {
-            strictProfanityFilter: settings.strictProfanityFilter,
-            requireCompetitorMention: settings.requireCompetitorMention,
-            minAuthorKarma: settings.minAuthorKarma,
-            maxPostAgeHours: settings.maxPostAgeHours,
-          },
-        }),
+    if (res.ok) {
+      setTargets((prev) => prev.filter((t) => t.id !== id));
+      setTargetDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "failed");
-      setSettings(json.settings);
-      setOriginal(json.settings);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "error");
-    } finally {
-      setSaving(false);
     }
   }
 
-  function reset() {
-    if (original) setSettings(original);
+  function isTargetDirty(target: SubredditTarget) {
+    const draft = targetDrafts[target.id];
+    if (!draft) return false;
+    const normalizedName = draft.name.trim().replace(/^r\//i, "");
+    return normalizedName !== target.name || draft.priority !== target.priority;
+  }
+
+  const dirtyTargets = targets.some((t) => isTargetDirty(t));
+
+  async function saveTargetChanges() {
+    const changedTargets = targets.filter((t) => isTargetDirty(t));
+    if (changedTargets.length === 0) return;
+
+    setSavingTargets(true);
+    setError(null);
+    try {
+      const responses = await Promise.all(
+        changedTargets.map(async (target) => {
+          const draft = targetDrafts[target.id];
+          const name = draft?.name?.trim().replace(/^r\//i, "") ?? "";
+          const priority = draft?.priority ?? target.priority;
+          if (!name) throw new Error("Subreddit name can't be empty");
+
+          const res = await fetch("/api/subreddits", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: target.id,
+              patch: { name, priority },
+            }),
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error ?? "failed");
+          return json.target as SubredditTarget;
+        }),
+      );
+
+      setTargets((prev) =>
+        prev.map((t) => responses.find((u) => u.id === t.id) ?? t),
+      );
+      setTargetDrafts((prev) => {
+        const next = { ...prev };
+        for (const updated of responses) {
+          next[updated.id] = { name: updated.name, priority: updated.priority };
+        }
+        return next;
+      });
+      setTargetsSaved(true);
+      setTimeout(() => setTargetsSaved(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error");
+    } finally {
+      setSavingTargets(false);
+    }
+  }
+
+  function resetTargetChanges() {
+    setTargetDrafts(
+      Object.fromEntries(
+        targets.map((t) => [t.id, { name: t.name, priority: t.priority }]),
+      ),
+    );
   }
 
   return (
@@ -317,14 +386,16 @@ function SubredditsTab({ product }: { product: Product }) {
               onChange={(e) => setNewName(e.currentTarget.value)}
             />
           </div>
-          <select
+          <Select
             value={newPriority}
-            onChange={(e) => setNewPriority(e.currentTarget.value as SubredditPriority)}
-            className="h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm shadow-card outline-none focus:border-ink-300 focus:ring-2 focus:ring-ink-200/70"
-          >
-            <option value="standard">Standard</option>
-            <option value="high">High priority</option>
-          </select>
+            onChange={(v) => setNewPriority(v)}
+            options={[
+              { value: "standard", label: "Standard" },
+              { value: "high", label: "High priority" },
+            ]}
+            className="w-44"
+            ariaLabel="Target priority"
+          />
           <Button type="submit" loading={adding} disabled={!newName.trim()}>
             Add
           </Button>
@@ -338,23 +409,45 @@ function SubredditsTab({ product }: { product: Product }) {
           )}
           {targets.map((t) => (
             <div key={t.id} className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-100 text-xs font-semibold text-ink-700">
                   r/
                 </span>
-                <div>
-                  <div className="text-sm font-semibold text-ink-900">
-                    r/{t.name}
-                  </div>
-                  <div className="text-[11px] text-ink-400">
-                    Added {new Date(t.createdAt).toLocaleDateString()}
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <Input
+                    value={targetDrafts[t.id]?.name ?? t.name}
+                    onChange={(e) =>
+                      setTargetDrafts((prev) => ({
+                        ...prev,
+                        [t.id]: {
+                          name: e.currentTarget.value,
+                          priority: prev[t.id]?.priority ?? t.priority,
+                        },
+                      }))
+                    }
+                    className="w-full"
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge tone={t.priority === "high" ? "brand" : "neutral"}>
-                  {t.priority === "high" ? "High Priority" : "Standard"}
-                </Badge>
+              <div className="ml-4 flex items-center gap-2">
+                <Select
+                  value={targetDrafts[t.id]?.priority ?? t.priority}
+                  onChange={(v) =>
+                    setTargetDrafts((prev) => ({
+                      ...prev,
+                      [t.id]: {
+                        name: prev[t.id]?.name ?? t.name,
+                        priority: v,
+                      },
+                    }))
+                  }
+                  options={[
+                    { value: "standard", label: "Standard" },
+                    { value: "high", label: "High priority" },
+                  ]}
+                  className="w-40"
+                  ariaLabel={`Priority for r/${t.name}`}
+                />
                 <button
                   onClick={() => removeTarget(t.id)}
                   className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
@@ -365,6 +458,15 @@ function SubredditsTab({ product }: { product: Product }) {
             </div>
           ))}
         </div>
+
+        <FormFooter
+          dirty={dirtyTargets}
+          saving={savingTargets}
+          saved={targetsSaved}
+          error={error}
+          onSave={saveTargetChanges}
+          onReset={resetTargetChanges}
+        />
       </Card>
 
       <Card className="p-6">
@@ -387,171 +489,9 @@ function SubredditsTab({ product }: { product: Product }) {
               setSettings((s) => (s ? { ...s, strictProfanityFilter: v } : s))
             }
           />
-          <ToggleRow
-            icon={<IconSparkles className="h-4 w-4" />}
-            label="Require Direct Competitor Mention"
-            helper="Only surface posts that explicitly mention a competitor or category term."
-            checked={settings?.requireCompetitorMention ?? false}
-            onChange={(v) =>
-              setSettings((s) => (s ? { ...s, requireCompetitorMention: v } : s))
-            }
-          />
-
-          <div className="grid grid-cols-1 gap-4 pt-2 md:grid-cols-2">
-            <Field label="Min Author Karma">
-              <Input
-                type="number"
-                min={0}
-                value={settings?.minAuthorKarma ?? 0}
-                onChange={(e) =>
-                  setSettings((s) =>
-                    s
-                      ? {
-                          ...s,
-                          minAuthorKarma: Number(e.currentTarget.value) || 0,
-                        }
-                      : s,
-                  )
-                }
-              />
-            </Field>
-            <Field label="Max Post Age (hours)">
-              <Input
-                type="number"
-                min={1}
-                value={settings?.maxPostAgeHours ?? 24}
-                onChange={(e) =>
-                  setSettings((s) =>
-                    s
-                      ? {
-                          ...s,
-                          maxPostAgeHours: Number(e.currentTarget.value) || 24,
-                        }
-                      : s,
-                  )
-                }
-              />
-            </Field>
-          </div>
         </div>
-
-        <FormFooter
-          dirty={dirty}
-          saving={saving}
-          saved={saved}
-          error={error}
-          onSave={save}
-          onReset={reset}
-        />
       </Card>
     </div>
-  );
-}
-
-interface UserSettingsView {
-  productId: string;
-  notifyNewPosts: boolean;
-  notifyLeadReminders: boolean;
-  updatedAt: string;
-}
-
-function NotificationsTab({ product }: { product: Product }) {
-  const [settings, setSettings] = useState<UserSettingsView | null>(null);
-  const [original, setOriginal] = useState<UserSettingsView | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/user-settings?productId=${product.id}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (j.settings) {
-          setSettings(j.settings);
-          setOriginal(j.settings);
-        }
-      })
-      .catch(() => setError("Couldn't load settings"));
-  }, [product.id]);
-
-  const dirty =
-    settings !== null &&
-    original !== null &&
-    (settings.notifyNewPosts !== original.notifyNewPosts ||
-      settings.notifyLeadReminders !== original.notifyLeadReminders);
-
-  async function save() {
-    if (!settings) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/user-settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: product.id,
-          patch: {
-            notifyNewPosts: settings.notifyNewPosts,
-            notifyLeadReminders: settings.notifyLeadReminders,
-          },
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "failed");
-      setSettings(json.settings);
-      setOriginal(json.settings);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function reset() {
-    if (original) setSettings(original);
-  }
-
-  return (
-    <Card className="p-6">
-      <div className="mb-5">
-        <h2 className="text-base font-semibold text-ink-900">Notifications</h2>
-        <p className="mt-0.5 text-xs text-ink-500">
-          Choose when you want us to reach out.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <ToggleRow
-          icon={<IconBell className="h-4 w-4" />}
-          label="New post alerts"
-          helper="Get notified when a new high-intent post is found."
-          checked={settings?.notifyNewPosts ?? false}
-          onChange={(v) =>
-            setSettings((s) => (s ? { ...s, notifyNewPosts: v } : s))
-          }
-        />
-        <ToggleRow
-          icon={<IconAlert className="h-4 w-4" />}
-          label="Lead follow-up reminders"
-          helper="Send a daily reminder for leads you haven't followed up on."
-          checked={settings?.notifyLeadReminders ?? false}
-          onChange={(v) =>
-            setSettings((s) => (s ? { ...s, notifyLeadReminders: v } : s))
-          }
-        />
-      </div>
-
-      <FormFooter
-        dirty={dirty}
-        saving={saving}
-        saved={saved}
-        error={error}
-        onSave={save}
-        onReset={reset}
-      />
-    </Card>
   );
 }
 
@@ -584,6 +524,18 @@ function AccountTab({ product }: { product: Product }) {
 
   return (
     <div className="space-y-6">
+      <AccountProfileCard />
+
+      <Card className="p-6">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-ink-900">Appearance</h2>
+          <p className="mt-0.5 text-xs text-ink-500">
+            Choose how RedditLeads looks. System matches your device setting.
+          </p>
+        </div>
+        <ThemeToggle />
+      </Card>
+
       <Card className="p-6">
         <div className="mb-4">
           <h2 className="text-base font-semibold text-ink-900">Account info</h2>
@@ -754,8 +706,8 @@ function EmptyShell() {
   return (
     <>
       <Header title="Settings" />
-      <main className="flex-1 px-8 py-12">
-        <Card className="mx-auto max-w-2xl p-10 text-center">
+      <main className="flex-1 px-4 py-8 sm:px-8 sm:py-12">
+        <Card className="mx-auto max-w-2xl p-6 text-center sm:p-10">
           <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
             <IconAlert className="h-6 w-6" />
           </div>
@@ -776,5 +728,92 @@ function EmptyShell() {
         </Card>
       </main>
     </>
+  );
+}
+
+function AccountProfileCard() {
+  const { user, loading } = useAuthUser();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    await signOut();
+    window.location.assign("/signin");
+  }
+
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 animate-pulse rounded-full bg-ink-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-40 animate-pulse rounded bg-ink-100" />
+            <div className="h-3 w-56 animate-pulse rounded bg-ink-100" />
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-ink-900">Not signed in</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
+              Sign in to manage your profile.
+            </p>
+          </div>
+          <Link href="/signin">
+            <Button>Sign in</Button>
+          </Link>
+        </div>
+      </Card>
+    );
+  }
+
+  const displayName = user.fullName ?? user.email ?? "Account";
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-ink-900">Profile</h2>
+        <p className="mt-0.5 text-xs text-ink-500">
+          Your signed-in account on RedditLeads.
+        </p>
+      </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <Avatar
+            name={displayName}
+            src={user.avatarUrl}
+            size="lg"
+          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-ink-900">
+              {displayName}
+            </div>
+            {user.email && (
+              <div className="truncate text-xs text-ink-500">{user.email}</div>
+            )}
+            {user.avatarUrl && (
+              <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-brand-700">
+                <IconCheck className="h-3 w-3" />
+                Connected with Google
+              </div>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          className="border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
+          onClick={handleSignOut}
+          disabled={signingOut}
+        >
+          {signingOut ? "Signing out…" : "Sign out"}
+        </Button>
+      </div>
+    </Card>
   );
 }

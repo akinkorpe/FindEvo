@@ -2,8 +2,216 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Theme tokens
+   ------------------------------------------------------------
+   Each color is stored as R G B channels (no commas) so Tailwind's
+   `<alpha-value>` modifier works. Tailwind reads e.g.
+     bg-ink-200/60 → rgb(var(--ink-200) / 0.6)
+   Switching theme is a single attribute flip on <html data-theme=…>.
+   ============================================================ */
+
 :root {
   color-scheme: light;
+
+  /* Typography */
+  --font-heading: var(--font-geist), var(--font-plus-jakarta), "Plus Jakarta Sans",
+    ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+
+  /* Surfaces */
+  --bg-body: 248 250 252; /* #F8FAFC */
+  --surface-primary: 255 255 255; /* #FFFFFF */
+  --surface-secondary: 241 245 249; /* #F1F5F9 */
+
+  /* Ink scale (light theme — dark text on light surface) */
+  --ink-900: 15 23 42; /* #0F172A */
+  --ink-800: 30 41 59; /* #1E293B */
+  --ink-700: 51 65 85; /* #334155 */
+  --ink-600: 71 85 105; /* #475569 */
+  --ink-500: 100 116 139; /* #64748B */
+  --ink-400: 148 163 184; /* #94A3B8 */
+  --ink-300: 203 213 225; /* #CBD5E1 */
+  --ink-200: 226 232 240; /* #E2E8F0 */
+  --ink-100: 241 245 249; /* #F1F5F9 */
+  --ink-50: 248 250 252; /* #F8FAFC */
+
+  /* Brand (green) */
+  --brand-50: 236 253 245;
+  --brand-100: 209 250 229;
+  --brand-200: 167 243 208;
+  --brand-300: 110 231 183;
+  --brand-400: 52 211 153;
+  --brand-500: 16 185 129;
+  --brand-600: 5 150 105;
+  --brand-700: 4 120 87;
+  --brand-800: 6 95 70;
+  --brand-900: 6 78 59;
+
+  /* Status */
+  --danger-500: 239 68 68;
+  --danger-50: 254 242 242;
+  --warning-500: 245 158 11;
+  --warning-50: 255 251 235;
+  --success-500: 16 185 129;
+  --success-50: 236 253 245;
+
+  /* Shadows — soft drop shadows */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04),
+    0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 10px 30px -12px rgb(15 23 42 / 0.15);
+
+  /* Chart palette */
+  --chart-grid: rgb(226 232 240);
+  --chart-axis: rgb(148 163 184);
+  --chart-line: rgb(16 185 129);
+  --chart-area-stop: rgb(16 185 129);
+  --chart-dot-fill: rgb(255 255 255);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces — true black body, layered surfaces */
+  --bg-body: 0 0 0; /* #000 */
+  --surface-primary: 15 17 21; /* #0F1115 */
+  --surface-secondary: 24 27 32; /* #181B20 */
+
+  /* Ink scale — INVERTED so existing classes keep their semantic meaning:
+     ink-900 (was darkest) → brightest text in dark mode
+     ink-50  (was lightest) → deepest surface
+     This lets every `text-ink-900`, `bg-ink-50`, `border-ink-200`, etc.
+     adapt automatically with no component edits. */
+  --ink-900: 230 234 240; /* primary text */
+  --ink-800: 210 216 224; /* near-primary text */
+  --ink-700: 182 189 199; /* strong secondary */
+  --ink-600: 154 164 178; /* secondary */
+  --ink-500: 122 132 147; /* tertiary / muted */
+  --ink-400: 93 102 117; /* placeholder / icon */
+  --ink-300: 61 68 80; /* divider strong */
+  --ink-200: 35 38 45; /* border default (#23262D) */
+  --ink-100: 28 32 38; /* hover / soft fill */
+  --ink-50: 24 27 32; /* deepest fill */
+
+  /* Brand — slightly brighter for dark mode contrast */
+  --brand-50: 34 197 94; /* used as a tinted bg via /opacity */
+  --brand-100: 34 197 94;
+  --brand-200: 34 197 94;
+  --brand-300: 74 222 128;
+  --brand-400: 74 222 128;
+  --brand-500: 34 197 94;
+  --brand-600: 22 163 74;
+  --brand-700: 134 239 172;
+  --brand-800: 187 247 208;
+  --brand-900: 220 252 231;
+
+  /* Status — slightly desaturated for dark surfaces */
+  --danger-500: 248 113 113;
+  --danger-50: 248 113 113;
+  --warning-500: 251 191 36;
+  --warning-50: 251 191 36;
+  --success-500: 34 197 94;
+  --success-50: 34 197 94;
+
+  /* Shadows — reduced; rely on borders for separation */
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-pop: 0 12px 32px -16px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(255 255 255 / 0.04);
+
+  /* Chart palette — brighter strokes, dark grid */
+  --chart-grid: rgb(35 38 45);
+  --chart-axis: rgb(122 132 147);
+  --chart-line: rgb(74 222 128);
+  --chart-area-stop: rgb(34 197 94);
+  --chart-dot-fill: rgb(15 17 21);
+}
+
+/* In dark mode, the *-50 status/brand tokens are alpha-tinted overlays.
+   Card "bg-brand-50" pages render the tint correctly because Tailwind
+   passes alpha. To keep "bg-brand-50" without /opacity readable in dark
+   mode, force a low alpha when used as a surface tint. */
+[data-theme="dark"] .bg-brand-50 {
+  background-color: rgb(var(--brand-50) / 0.14);
+}
+[data-theme="dark"] .bg-success-50 {
+  background-color: rgb(var(--success-50) / 0.14);
+}
+[data-theme="dark"] .bg-danger-50 {
+  background-color: rgb(var(--danger-50) / 0.14);
+}
+[data-theme="dark"] .bg-warning-50 {
+  background-color: rgb(var(--warning-50) / 0.14);
+}
+
+/* Scrims (drawer / modal overlays) must stay a dark wash in both themes.
+   In dark mode, ink-900 is a near-white text color, which would invert the
+   scrim — so we pin these utilities to a true-black overlay. */
+[data-theme="dark"] .bg-ink-900\/20 {
+  background-color: rgb(0 0 0 / 0.55);
+}
+[data-theme="dark"] .bg-ink-900\/40 {
+  background-color: rgb(0 0 0 / 0.7);
+}
+
+/* Tailwind default palette tints (red-50/100/200, amber-50/100, blue-50…)
+   are too bright on a dark surface. Dim them to translucent tints. */
+[data-theme="dark"] .bg-red-50 {
+  background-color: rgb(248 113 113 / 0.12);
+}
+[data-theme="dark"] .bg-red-50\/40 {
+  background-color: rgb(248 113 113 / 0.06);
+}
+[data-theme="dark"] .bg-red-100 {
+  background-color: rgb(248 113 113 / 0.18);
+}
+[data-theme="dark"] .border-red-200 {
+  border-color: rgb(248 113 113 / 0.32);
+}
+[data-theme="dark"] .border-red-300 {
+  border-color: rgb(248 113 113 / 0.42);
+}
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-700 {
+  color: rgb(252 165 165);
+}
+[data-theme="dark"] .text-red-500 {
+  color: rgb(248 113 113);
+}
+[data-theme="dark"] .hover\:bg-red-50:hover {
+  background-color: rgb(248 113 113 / 0.16);
+}
+
+[data-theme="dark"] .bg-amber-50 {
+  background-color: rgb(251 191 36 / 0.12);
+}
+[data-theme="dark"] .text-amber-700 {
+  color: rgb(252 211 77);
+}
+[data-theme="dark"] .ring-amber-200 {
+  --tw-ring-color: rgb(251 191 36 / 0.32);
+}
+
+[data-theme="dark"] .bg-blue-50 {
+  background-color: rgb(96 165 250 / 0.14);
+}
+[data-theme="dark"] .text-blue-700 {
+  color: rgb(147 197 253);
+}
+[data-theme="dark"] .ring-blue-200 {
+  --tw-ring-color: rgb(96 165 250 / 0.32);
+}
+
+/* Brand & danger ring overrides (Tailwind ring uses CSS var --tw-ring-color) */
+[data-theme="dark"] .ring-brand-100 {
+  --tw-ring-color: rgb(34 197 94 / 0.28);
+}
+[data-theme="dark"] .ring-brand-200 {
+  --tw-ring-color: rgb(34 197 94 / 0.4);
+}
+[data-theme="dark"] .ring-red-100 {
+  --tw-ring-color: rgb(248 113 113 / 0.28);
 }
 
 html,
@@ -11,9 +219,90 @@ body {
   height: 100%;
 }
 
+html {
+  font-family: var(--font-body);
+}
+
 body {
-  @apply bg-surface-muted text-ink-800 antialiased;
+  background-color: rgb(var(--bg-body));
+  color: rgb(var(--ink-900));
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Typography hierarchy
+   ------------------------------------------------------------
+   Headings, titles and the logo use the display font (Geist
+   with Plus Jakarta Sans as a fallback). All other UI text
+   inherits the body font (Inter). */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.018em;
+  color: rgb(var(--ink-900));
+}
+
+h1 {
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+h2,
+h3,
+h4 {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h5,
+h6 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+p,
+span,
+label,
+li,
+button,
+input,
+select,
+textarea,
+a {
+  font-family: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  letter-spacing: inherit;
+}
+
+small {
+  font-size: 0.85em;
+  color: rgb(var(--ink-500));
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01", "ss02";
+}
+
+::placeholder {
+  font-family: var(--font-body);
 }
 
 *:focus-visible {
@@ -22,4 +311,16 @@ body {
 
 ::selection {
   background: rgb(16 185 129 / 0.2);
+}
+
+/* Smooth theme transition (skip layout-affecting properties) */
+:where(*),
+:where(*)::before,
+:where(*)::after {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    fill 0.2s ease,
+    stroke 0.2s ease;
 }

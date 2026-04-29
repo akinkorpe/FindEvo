@@ -85,10 +85,63 @@ const SURVEY: SurveyQuestion[] = [
   },
 ];
 
+/**
+ * Cleans and validates a user-provided URL.
+ * - "example.com" → "https://example.com"
+ * - Returns the normalized URL when valid.
+ * - Returns a user-facing English error when invalid.
+ */
+function normalizeAndValidateUrl(
+  raw: string,
+): { ok: true; url: string } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Please enter a site address." };
+  }
+
+  if (/\s/.test(trimmed)) {
+    return { ok: false, error: "URL can't contain spaces." };
+  }
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(withProtocol);
+  } catch {
+    return { ok: false, error: "Enter a valid URL (e.g. example.com)." };
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: "Only http or https URLs are accepted." };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (!host) {
+    return { ok: false, error: "URL must include a domain." };
+  }
+  if (host !== "localhost" && !host.includes(".")) {
+    return { ok: false, error: "Enter a valid domain (e.g. example.com)." };
+  }
+  if (host.length < 4 && host !== "localhost") {
+    return { ok: false, error: "Enter a valid domain (e.g. example.com)." };
+  }
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(host)) {
+    return { ok: false, error: "Enter a valid domain (e.g. example.com)." };
+  }
+  const tld = host.split(".").pop() ?? "";
+  if (host !== "localhost" && tld.length < 2) {
+    return { ok: false, error: "Domain extension looks invalid." };
+  }
+
+  return { ok: true, url: parsed.toString() };
+}
+
 export default function OnboardingClient() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [url, setUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Partial<SurveyAnswers>>({});
   const [surveyIdx, setSurveyIdx] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -96,7 +149,13 @@ export default function OnboardingClient() {
   const [product, setProduct] = useState<Product | null>(null);
 
   function startSurvey() {
-    if (!url.trim()) return;
+    const result = normalizeAndValidateUrl(url);
+    if (!result.ok) {
+      setUrlError(result.error);
+      return;
+    }
+    setUrl(result.url);
+    setUrlError(null);
     setError(null);
     setStep(2);
     setSurveyIdx(0);
@@ -161,8 +220,8 @@ export default function OnboardingClient() {
   const progressStep = step === 2 ? 2 : step;
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="flex items-center justify-between px-6 pt-5 md:px-10">
+    <div className="min-h-screen bg-white pb-12">
+      <div className="flex items-center justify-between px-4 pt-4 sm:px-6 sm:pt-5 md:px-10">
         <Logo />
         <Link
           href="/dashboard"
@@ -172,7 +231,7 @@ export default function OnboardingClient() {
         </Link>
       </div>
 
-      <div className="flex items-center justify-center gap-2 pt-10">
+      <div className="flex items-center justify-center gap-1.5 pt-6 sm:gap-2 sm:pt-10">
         {Array.from({ length: totalSteps }).map((_, i) => {
           const s = (i + 1) as Step;
           return (
@@ -180,27 +239,27 @@ export default function OnboardingClient() {
               key={s}
               className={`h-1.5 rounded-full transition-all ${
                 progressStep === s
-                  ? "w-10 bg-brand-500"
+                  ? "w-8 bg-brand-500 sm:w-10"
                   : progressStep > s
-                    ? "w-10 bg-brand-200"
-                    : "w-8 bg-ink-200"
+                    ? "w-8 bg-brand-200 sm:w-10"
+                    : "w-6 bg-ink-200 sm:w-8"
               }`}
             />
           );
         })}
       </div>
 
-      <div className="mx-auto max-w-2xl px-6 pt-12 text-center">
-        <div className="relative mx-auto mb-10 flex h-24 w-24 items-center justify-center">
+      <div className="mx-auto max-w-2xl px-4 pt-8 text-center sm:px-6 sm:pt-12">
+        <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center sm:mb-10 sm:h-24 sm:w-24">
           <span className="absolute inset-0 animate-pulse rounded-full bg-brand-100 blur-2xl" />
-          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-pop ring-1 ring-brand-200">
-            <IconSparkles className="h-7 w-7 text-brand-500" />
+          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-pop ring-1 ring-brand-200 sm:h-16 sm:w-16">
+            <IconSparkles className="h-6 w-6 text-brand-500 sm:h-7 sm:w-7" />
           </span>
         </div>
 
         {step === 1 && (
           <>
-            <h1 className="text-3xl font-bold tracking-tight text-ink-900 md:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl md:text-4xl">
               Where should we start?
             </h1>
             <p className="mx-auto mt-3 max-w-lg text-ink-500">
@@ -213,17 +272,34 @@ export default function OnboardingClient() {
                 e.preventDefault();
                 startSurvey();
               }}
-              className="mx-auto mt-8 max-w-xl"
+              className="mx-auto mt-6 max-w-xl sm:mt-8"
             >
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <div className="flex-1">
                   <Input
                     sizeVariant="lg"
                     leftIcon={<IconLink className="h-4 w-4" />}
                     placeholder="https://your-product.com"
                     value={url}
-                    onChange={(e) => setUrl(e.currentTarget.value)}
+                    onChange={(e) => {
+                      setUrl(e.currentTarget.value);
+                      if (urlError) setUrlError(null);
+                    }}
+                    onBlur={() => {
+                      if (!url.trim()) return;
+                      const r = normalizeAndValidateUrl(url);
+                      if (!r.ok) setUrlError(r.error);
+                    }}
+                    aria-invalid={Boolean(urlError)}
+                    inputMode="url"
+                    autoComplete="url"
+                    spellCheck={false}
                     autoFocus
+                    className={
+                      urlError
+                        ? "border-red-400 ring-2 ring-red-100"
+                        : ""
+                    }
                   />
                 </div>
                 <Button
@@ -235,7 +311,18 @@ export default function OnboardingClient() {
                   Continue
                 </Button>
               </div>
-              {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+              {urlError ? (
+                <p
+                  role="alert"
+                  className="mt-2 text-left text-xs font-medium text-red-600"
+                >
+                  {urlError}
+                </p>
+              ) : (
+                error && (
+                  <p className="mt-3 text-xs text-red-600">{error}</p>
+                )
+              )}
             </form>
           </>
         )}
@@ -253,7 +340,7 @@ export default function OnboardingClient() {
 
         {step === 3 && (
           <>
-            <h1 className="text-3xl font-bold tracking-tight text-ink-900 md:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl md:text-4xl">
               Analyzing your site…
             </h1>
             <p className="mx-auto mt-3 max-w-lg text-ink-500">
@@ -267,7 +354,7 @@ export default function OnboardingClient() {
 
         {step === 4 && product && (
           <>
-            <h1 className="text-3xl font-bold tracking-tight text-ink-900 md:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl md:text-4xl">
               {product.name ? `Mapped ${product.name}` : "Analysis complete"}
             </h1>
             <p className="mx-auto mt-3 max-w-lg text-ink-500">
@@ -372,11 +459,11 @@ function SurveyStep({
       <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-600">
         Question {idx + 1} / {total}
       </div>
-      <h1 className="text-2xl font-bold tracking-tight text-ink-900 md:text-3xl">
+      <h1 className="text-xl font-bold tracking-tight text-ink-900 sm:text-2xl md:text-3xl">
         {question.title}
       </h1>
 
-      <div className="mx-auto mt-8 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mx-auto mt-6 grid max-w-xl grid-cols-1 gap-3 sm:mt-8 sm:grid-cols-2">
         {question.options.map((opt) => {
           const active = value === opt.value;
           return (

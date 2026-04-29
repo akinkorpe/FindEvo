@@ -21,7 +21,12 @@ export function getSupabaseBrowser(): SupabaseClient {
   }
   if (!browserClient) {
     browserClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-      auth: { persistSession: false },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: "implicit",
+      },
     });
   }
   return browserClient;

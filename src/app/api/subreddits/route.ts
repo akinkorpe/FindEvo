@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { addTarget, listTargets, removeTarget } from "@/repositories/subreddits.repo";
+import {
+  addTarget,
+  listTargets,
+  removeTarget,
+  updateTarget,
+} from "@/repositories/subreddits.repo";
 import type { SubredditPriority } from "@/types";
 
 export const runtime = "nodejs";
@@ -51,5 +56,20 @@ export async function DELETE(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = (await request.json()) as {
+      id?: string;
+      patch?: { name?: string; priority?: SubredditPriority };
+    };
+    if (!body.id) throw new Error("`id` required");
+    const target = await updateTarget(body.id, body.patch ?? {});
+    return NextResponse.json({ ok: true, target });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "error";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }

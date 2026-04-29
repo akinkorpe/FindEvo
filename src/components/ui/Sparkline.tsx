@@ -9,7 +9,7 @@ export function Sparkline({
   points,
   width = 80,
   height = 20,
-  stroke = "#10B981",
+  stroke = "var(--chart-line)",
 }: Props) {
   if (points.length === 0) {
     return <svg width={width} height={height} />;

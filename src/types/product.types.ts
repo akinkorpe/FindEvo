@@ -25,6 +25,7 @@ export interface Product {
   name: string | null;
   niche: string | null;
   summary: string | null;
+  buyerPersona: string | null;
   keywords: string[];
   subreddits: string[];
   surveyAnswers: SurveyAnswers | null;
@@ -37,6 +38,7 @@ export interface ProductAnalysis {
   name: string;
   niche: string;
   summary: string;
+  buyerPersona: string;
   keywords: string[];
   subreddits: string[];
 }

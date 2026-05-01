@@ -38,9 +38,6 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const params = new URLSearchParams({ productId });
-      const { view, subredditFilter } = get();
-      params.set("view", view);
-      if (subredditFilter) params.set("subreddit", subredditFilter);
       const res = await fetch(`/api/feed?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "failed to load feed");

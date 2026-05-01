@@ -25,8 +25,11 @@ export function validateInput(raw: unknown): AnalyzeSiteInput {
   return { url, survey: input.survey };
 }
 
-export async function handle(raw: unknown): Promise<AnalyzeSiteOutput> {
+export async function handle(
+  raw: unknown,
+  ownerId: string,
+): Promise<AnalyzeSiteOutput> {
   const { url, survey } = validateInput(raw);
-  const product = await analyzeAndPersist(url, survey);
+  const product = await analyzeAndPersist(url, ownerId, survey);
   return { product };
 }

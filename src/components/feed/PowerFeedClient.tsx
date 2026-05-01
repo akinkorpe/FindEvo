@@ -19,6 +19,7 @@ import {
   IconShield,
   IconAlert,
   IconEye,
+  IconPlus,
 } from "@/components/ui/Icons";
 import { useFeedStore } from "@/store/useFeedStore";
 import type {
@@ -41,6 +42,7 @@ export default function PowerFeedClient() {
   const [product, setProduct] = useState<Product | null>(null);
   const [noProduct, setNoProduct] = useState(false);
   const [targets, setTargets] = useState<SubredditTarget[]>([]);
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [scanningSub, setScanningSub] = useState<string | null>(null);
@@ -74,56 +76,82 @@ export default function PowerFeedClient() {
     load(product.id);
     fetch(`/api/subreddits?productId=${product.id}`)
       .then((r) => r.json())
-      .then((j) => setTargets(j.targets ?? []));
-  }, [product, view, subredditFilter, load]);
+      .then((j) => {
+        setTargets(j.targets ?? []);
+        setTargetsLoaded(true);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
 
-  const autoFetchedFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!product || targets.length === 0) return;
-    if (autoFetchedFor.current === product.id) return;
-    autoFetchedFor.current = product.id;
+  const scanningRef = useRef(false);
+  const scanQueueRef = useRef<Array<{ name: string; bypassCooldown: boolean }>>([]);
 
+  async function fetchSubreddits(
+    subs: SubredditTarget[],
+    productId: string,
+    options: { bypassCooldown?: boolean } = {},
+  ) {
     const cooldownKey = (sub: string) =>
-      `redditleads:lastFetch:${product.id}:${sub.toLowerCase()}`;
-
-    const due = targets.filter((t) => {
-      const last = Number(localStorage.getItem(cooldownKey(t.name)) ?? 0);
-      return Date.now() - last > AUTO_FETCH_COOLDOWN_MS;
-    });
-    if (due.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      for (const t of due) {
-        if (cancelled) break;
-        setScanningSub(t.name);
+      `redditleads:lastFetch:${productId}:${sub.toLowerCase()}`;
+    // Enqueue new requests; merge with anything already running to avoid drops
+    // when a user adds a subreddit while initial scan is still in flight.
+    for (const t of subs) {
+      const already = scanQueueRef.current.some(
+        (q) => q.name.toLowerCase() === t.name.toLowerCase(),
+      );
+      if (!already) {
+        scanQueueRef.current.push({
+          name: t.name,
+          bypassCooldown: !!options.bypassCooldown,
+        });
+      }
+    }
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    try {
+      while (scanQueueRef.current.length > 0) {
+        const next = scanQueueRef.current.shift()!;
+        const last = Number(localStorage.getItem(cooldownKey(next.name)) ?? 0);
+        const dueByCooldown = Date.now() - last > AUTO_FETCH_COOLDOWN_MS;
+        if (!next.bypassCooldown && !dueByCooldown) continue;
+        setScanningSub(next.name);
         try {
           const res = await fetch("/api/fetch-posts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              productId: product.id,
-              subreddit: t.name,
+              productId,
+              subreddit: next.name,
               score: true,
               limit: 50,
             }),
           });
-          if (res.status === 429) break; // rate-limited, stop scanning
+          if (res.status === 429) {
+            scanQueueRef.current = [];
+            break;
+          }
           if (res.ok) {
-            localStorage.setItem(cooldownKey(t.name), String(Date.now()));
-            await load(product.id);
+            localStorage.setItem(cooldownKey(next.name), String(Date.now()));
+            await load(productId);
           }
         } catch {
-          /* skip single-sub failure */
+          /* skip on network failure */
         }
       }
-      if (!cancelled) setScanningSub(null);
-    })();
+    } finally {
+      setScanningSub(null);
+      scanningRef.current = false;
+    }
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [product, targets, load]);
+  const initialFetchDone = useRef(false);
+  useEffect(() => {
+    if (!product || targets.length === 0) return;
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+    fetchSubreddits(targets, product.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, targets]);
 
   const sorted = useMemo(() => {
     const arr = [...items];
@@ -137,9 +165,22 @@ export default function PowerFeedClient() {
     return arr;
   }, [items, sort]);
 
+  const trackedSubs = useMemo(
+    () => new Set(targets.map((t) => t.name.toLowerCase())),
+    [targets],
+  );
+
   const visibleItems = useMemo(
-    () => sorted.filter((item) => isInTimeRange(item.post.createdAt, timeRange)),
-    [sorted, timeRange],
+    () => sorted.filter((item) =>
+      // Skip the tracked-subs check until targets are loaded — otherwise the
+      // feed flashes empty on initial render before /api/subreddits resolves.
+      (!targetsLoaded || trackedSubs.has(item.post.subreddit.toLowerCase())) &&
+      isInTimeRange(item.post.createdAt, timeRange) &&
+      (subredditFilter === null || item.post.subreddit.toLowerCase() === subredditFilter.toLowerCase()) &&
+      item.intentScore >= 30 &&
+      (view === "all" || (view === "high-intent" && item.intentScore >= 60))
+    ),
+    [sorted, timeRange, subredditFilter, view, trackedSubs, targetsLoaded],
   );
 
   const selected = visibleItems.find((p) => p.id === selectedId) ?? null;
@@ -162,6 +203,27 @@ export default function PowerFeedClient() {
 
   if (noProduct) return <EmptyState />;
 
+  function reloadTargets(newSubreddit?: string) {
+    if (!product) return;
+    fetch(`/api/subreddits?productId=${product.id}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const updated: SubredditTarget[] = j.targets ?? [];
+        setTargets(updated);
+        setTargetsLoaded(true);
+        if (newSubreddit) {
+          const newTarget = updated.filter(
+            (t) => t.name.toLowerCase() === newSubreddit.toLowerCase(),
+          );
+          if (newTarget.length > 0) {
+            // Bypass the per-sub cooldown — the user just added it and expects
+            // a fresh scan, even if (somehow) a stale cooldown timestamp exists.
+            fetchSubreddits(newTarget, product.id, { bypassCooldown: true });
+          }
+        }
+      });
+  }
+
   const filtersDrawerProps = {
     items: visibleItems,
     targets,
@@ -169,6 +231,8 @@ export default function PowerFeedClient() {
     setView,
     subreddit: subredditFilter,
     setSubreddit,
+    productId: product?.id,
+    onTargetsChange: reloadTargets,
   };
 
   return (
@@ -211,11 +275,24 @@ export default function PowerFeedClient() {
                   Top Score
                 </button>
               </div>
-              {scanningSub && (
+              {scanningSub ? (
                 <div className="flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-700">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
                   <span className="hidden sm:inline">Scanning </span>r/{scanningSub}…
                 </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (!product || targets.length === 0) return;
+                    targets.forEach((t) =>
+                      localStorage.removeItem(`redditleads:lastFetch:${product.id}:${t.name.toLowerCase()}`)
+                    );
+                    fetchSubreddits(targets, product.id);
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50"
+                >
+                  ↻ <span className="hidden sm:inline">Refresh</span>
+                </button>
               )}
             </div>
             <button
@@ -317,6 +394,8 @@ type FiltersProps = {
   setView: (v: "all" | "high-intent" | "saved") => void;
   subreddit: string | null;
   setSubreddit: (name: string | null) => void;
+  productId: string | undefined;
+  onTargetsChange: (newSubreddit?: string) => void;
 };
 
 function FiltersBody({
@@ -326,10 +405,24 @@ function FiltersBody({
   setView,
   subreddit,
   setSubreddit,
+  productId,
+  onTargetsChange,
 }: FiltersProps) {
+  const [addInput, setAddInput] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addedHint, setAddedHint] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!addedHint) return;
+    const id = window.setTimeout(() => setAddedHint(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [addedHint]);
+
   const counts = {
     all: items.length,
-    highIntent: items.filter((i) => i.intentScore >= 70).length,
+    highIntent: items.filter((i) => i.intentScore >= 60).length,
   };
 
   const viewItems = [
@@ -337,82 +430,184 @@ function FiltersBody({
     { key: "high-intent" as const, label: "High Intent", count: counts.highIntent, icon: <IconSparkles className="h-3.5 w-3.5" /> },
   ];
 
+  function normalizeSubredditName(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    // Accept: "name", "r/name", "/r/name", or full reddit URLs.
+    const urlMatch = trimmed.match(/reddit\.com\/r\/([a-z0-9_]+)/i);
+    const candidate = urlMatch ? urlMatch[1] : trimmed.replace(/^\/?r\//i, "");
+    const clean = candidate.replace(/\/+$/, "").trim();
+    if (!/^[a-z0-9_]{2,21}$/i.test(clean)) return null;
+    return clean;
+  }
+
+  async function handleAdd() {
+    if (!productId || adding) return;
+    const clean = normalizeSubredditName(addInput);
+    if (!clean) {
+      setAddError("Enter a valid subreddit name (e.g. r/SaaS)");
+      return;
+    }
+    if (targets.some((t) => t.name.toLowerCase() === clean.toLowerCase())) {
+      setAddError(`r/${clean} is already tracked`);
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    setAddedHint(null);
+    try {
+      const res = await fetch("/api/subreddits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, name: clean }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to add subreddit");
+      setAddInput("");
+      setAddedHint(clean);
+      onTargetsChange(clean);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "error");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRemove(id: string, name: string) {
+    setRemovingId(id);
+    if (subreddit === name) setSubreddit(null);
+    try {
+      await fetch(`/api/subreddits?id=${id}`, { method: "DELETE" });
+      onTargetsChange();
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
   return (
     <div className="space-y-5 overflow-y-auto p-5">
-        <div>
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            Views
-          </h3>
-          <div className="space-y-1">
-            {viewItems.map((v) => (
-              <button
-                key={v.key}
-                onClick={() => setView(v.key)}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition ${
-                  view === v.key
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-ink-700 hover:bg-ink-50"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <span className={view === v.key ? "text-brand-600" : "text-ink-400"}>
-                    {v.icon}
-                  </span>
-                  <span className="font-medium">{v.label}</span>
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    view === v.key
-                      ? "bg-white text-brand-700"
-                      : "bg-ink-100 text-ink-500"
-                  }`}
-                >
-                  {v.count}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            Subreddits
-          </h3>
-          <div className="space-y-1">
+      <div>
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+          Views
+        </h3>
+        <div className="space-y-1">
+          {viewItems.map((v) => (
             <button
-              onClick={() => setSubreddit(null)}
-              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition ${
-                subreddit === null
-                  ? "bg-ink-100 text-ink-900"
-                  : "text-ink-600 hover:bg-ink-50"
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm transition ${
+                view === v.key
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-ink-700 hover:bg-ink-50"
               }`}
             >
-              <span className="font-medium">All subreddits</span>
-            </button>
-            {targets.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSubreddit(t.name)}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition ${
-                  subreddit === t.name
-                    ? "bg-ink-100 text-ink-900"
-                    : "text-ink-600 hover:bg-ink-50"
+              <span className="flex items-center gap-2">
+                <span className={view === v.key ? "text-brand-600" : "text-ink-400"}>
+                  {v.icon}
+                </span>
+                <span className="font-medium">{v.label}</span>
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  view === v.key
+                    ? "bg-white text-brand-700"
+                    : "bg-ink-100 text-ink-500"
                 }`}
               >
-                <span className="truncate">r/{t.name}</span>
-                {t.priority === "high" && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                )}
-              </button>
-            ))}
-            {targets.length === 0 && (
-              <p className="px-2.5 py-2 text-xs text-ink-400">
-                No subreddits tracked yet.
-              </p>
-            )}
-          </div>
+                {v.count}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
+
+      <div>
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+          Subreddits
+        </h3>
+        <div className="space-y-1">
+          <button
+            onClick={() => setSubreddit(null)}
+            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition ${
+              subreddit === null
+                ? "bg-ink-100 text-ink-900"
+                : "text-ink-600 hover:bg-ink-50"
+            }`}
+          >
+            <span className="font-medium">All subreddits</span>
+          </button>
+          {targets.map((t) => (
+            <div
+              key={t.id}
+              className={`group flex w-full items-center rounded-lg px-2.5 py-1.5 text-sm transition ${
+                subreddit === t.name ? "bg-ink-100 text-ink-900" : "text-ink-600 hover:bg-ink-50"
+              }`}
+            >
+              <button
+                className="min-w-0 flex-1 truncate text-left"
+                onClick={() => setSubreddit(t.name)}
+              >
+                r/{t.name}
+              </button>
+              <button
+                onClick={() => handleRemove(t.id, t.name)}
+                disabled={removingId === t.id}
+                className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 text-ink-400 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                title="Remove subreddit"
+              >
+                <IconClose className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {targets.length === 0 && (
+            <p className="px-2.5 py-2 text-xs text-ink-400">
+              No subreddits tracked yet.
+            </p>
+          )}
+        </div>
+
+        {/* Add subreddit */}
+        <div className="mt-3">
+          <div className="flex gap-1.5">
+            <input
+              type="text"
+              value={addInput}
+              onChange={(e) => {
+                setAddInput(e.target.value);
+                setAddError(null);
+                setAddedHint(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              placeholder="r/subredditname"
+              disabled={adding}
+              aria-label="Add subreddit"
+              aria-invalid={!!addError}
+              className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-400 focus:outline-none disabled:opacity-60"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={adding || !addInput.trim()}
+              aria-label="Add subreddit"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition"
+            >
+              {adding ? (
+                <span className="h-3 w-3 animate-spin rounded-full border border-white border-t-transparent" />
+              ) : (
+                <IconPlus className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+          {addError && (
+            <p className="mt-1.5 text-[11px] text-red-600">{addError}</p>
+          )}
+          {addedHint && !addError && (
+            <p className="mt-1.5 text-[11px] text-brand-700">
+              Added r/{addedHint} — scanning posts now…
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -490,23 +685,21 @@ function FeedCard({
           : "border-ink-100 hover:border-ink-200 hover:shadow-card"
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-xs text-ink-500">
-          <span className="font-semibold text-ink-700">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+          <span className="whitespace-nowrap font-semibold text-ink-700">
             r/{item.post.subreddit}
           </span>
           {rule && (
             <Badge tone={rule.tone} title={item.rulesSummary ?? undefined}>
-              {rule.label}
+              <span className="whitespace-nowrap">{rule.label}</span>
             </Badge>
           )}
-          <span className="text-ink-300">•</span>
-          <span>{age}</span>
-          <span className="text-ink-300">•</span>
+          <span className="whitespace-nowrap">{age}</span>
           <span className="truncate">u/{item.post.author}</span>
         </div>
         <Badge tone={risk.tone} icon={risk.icon}>
-          {risk.label}
+          <span className="whitespace-nowrap">{risk.label}</span>
         </Badge>
       </div>
 
@@ -816,7 +1009,7 @@ function FetchPostsButton({ productId }: { productId: string }) {
 
   async function run() {
     if (targets.length === 0) {
-      setError("No tracked subreddits. Add some in Settings.");
+      setError("No tracked subreddits yet — add one from the Filters panel.");
       return;
     }
     setLoading(true);
@@ -910,9 +1103,9 @@ function EmptyState() {
 function ruleBadgeInfo(
   badge: "green" | "yellow" | "red" | null,
 ): { label: string; tone: "success" | "warning" | "danger" } | null {
-  if (badge === "green") return { label: "Rules: Open", tone: "success" };
-  if (badge === "yellow") return { label: "Rules: Limited", tone: "warning" };
-  if (badge === "red") return { label: "Rules: No-Promo", tone: "danger" };
+  if (badge === "green") return { label: "Promo OK", tone: "success" };
+  if (badge === "yellow") return { label: "Promo Limited", tone: "warning" };
+  if (badge === "red") return { label: "No Promo", tone: "danger" };
   return null;
 }
 

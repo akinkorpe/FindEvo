@@ -5,9 +5,7 @@ const OAUTH_BASE = "https://oauth.reddit.com";
 const PUBLIC_BASE = "https://www.reddit.com";
 
 export function isRedditConfigured(): boolean {
-  // MVP için OAuth zorunluluğunu kaldırdık, her zaman false dönüyoruz ki public fallback çalışsın
-  // Uygulama public JSON endpointleri üzerinden çalışacak.
-  return false;
+  return !!(process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET);
 }
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -44,6 +42,13 @@ async function getAppToken(): Promise<string> {
   return cachedToken.value;
 }
 
+export class RedditNotFoundError extends Error {
+  constructor(path: string) {
+    super(`Reddit ${path} 404`);
+    this.name = "RedditNotFoundError";
+  }
+}
+
 async function authedFetch(path: string, queryParams: string = ""): Promise<unknown> {
   if (isRedditConfigured()) {
     const token = await getAppToken();
@@ -53,6 +58,7 @@ async function authedFetch(path: string, queryParams: string = ""): Promise<unkn
         "User-Agent": process.env.REDDIT_USER_AGENT ?? "redditleads/0.1",
       },
     });
+    if (res.status === 404) throw new RedditNotFoundError(path);
     if (!res.ok) throw new Error(`Reddit ${path} ${res.status}`);
     return res.json();
   }
@@ -64,6 +70,7 @@ async function authedFetch(path: string, queryParams: string = ""): Promise<unkn
       "User-Agent": process.env.REDDIT_USER_AGENT ?? "redditleads/0.1",
     },
   });
+  if (res.status === 404) throw new RedditNotFoundError(path);
   if (!res.ok) throw new Error(`Reddit ${path} ${res.status}`);
   return res.json();
 }
@@ -101,7 +108,15 @@ export async function fetchPosts(
   // If keywords exist, use the search endpoint for much better recall
   if (keywords.length > 0) {
     path = `/r/${encodeURIComponent(clean)}/search`;
-    const q = keywords.map(k => `"${k}"`).join(" OR ");
+    // Use individual significant words (not exact phrases) to maximize recall.
+    const words = Array.from(
+      new Set(
+        keywords
+          .flatMap((k) => k.toLowerCase().split(/\s+/))
+          .filter((w) => w.length >= 4),
+      ),
+    ).slice(0, 10);
+    const q = words.length > 0 ? words.join(" OR ") : keywords[0];
     queryParams = `?q=${encodeURIComponent(q)}&restrict_sr=on&sort=new&limit=${limit}`;
   }
 
@@ -121,13 +136,32 @@ export async function fetchPosts(
 
   if (keywords.length === 0) return posts;
   
-  // We still do a lightweight local filter to ensure relevance, 
-  // but now we're searching over Reddit's actual search results
-  const needles = keywords.map((k) => k.toLowerCase());
+  const needles = Array.from(
+    new Set(keywords.flatMap((k) => k.toLowerCase().split(/\s+/)).filter((w) => w.length >= 4)),
+  );
   return posts.filter((p) => {
     const hay = `${p.title} ${p.body}`.toLowerCase();
     return needles.some((n) => hay.includes(n));
   });
+}
+
+/**
+ * Probe whether a subreddit exists and is publicly accessible.
+ * Returns true for 200, false for 404/403/private. Throws only on transport
+ * errors (so callers can distinguish "doesn't exist" from "Reddit is down").
+ */
+export async function subredditExists(name: string): Promise<boolean> {
+  const clean = name.replace(/^r\//i, "");
+  try {
+    const data = (await authedFetch(
+      `/r/${encodeURIComponent(clean)}/about`,
+    )) as { kind?: string; data?: { subreddit_type?: string } };
+    // Reddit returns kind:"t5" for real subs. Private/banned subs may return
+    // 200 with a different shape — treat anything other than t5 as missing.
+    return data?.kind === "t5";
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchRules(subreddit: string): Promise<SubredditRule[]> {

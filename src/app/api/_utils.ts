@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { RateLimitError } from "@/repositories/aiCredits.repo";
+import { UnauthorizedError } from "./_auth";
 
 export async function handleJson<T>(
   request: Request,
@@ -10,6 +11,9 @@ export async function handleJson<T>(
     const result = await run(body);
     return NextResponse.json({ ok: true, ...(result as object) });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 401 });
+    }
     if (err instanceof RateLimitError) {
       return NextResponse.json(
         {

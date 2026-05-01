@@ -65,17 +65,17 @@ export async function signUpWithPassword(email: string, password: string) {
     email: email.trim(),
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
     },
   });
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(next: string = "/") {
   const sb = getSupabaseBrowser();
   return sb.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 }

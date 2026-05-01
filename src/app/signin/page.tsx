@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode, type SVGProps } from "react";
+import { Suspense, useEffect, useState, type FormEvent, type ReactNode, type SVGProps } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   hasErrors,
   mapAuthError,
@@ -13,6 +14,16 @@ import {
 } from "@/lib/auth";
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInInner />
+    </Suspense>
+  );
+}
+
+function SignInInner() {
+  const params = useSearchParams();
+  const next = params.get("next") || "/";
   const [tab, setTab] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,6 +32,11 @@ export default function SignInPage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const queryError = params.get("error");
+    if (queryError) setFormError(mapAuthError(queryError));
+  }, [params]);
 
   function clearMessages() {
     setFormError(null);
@@ -49,8 +65,7 @@ export default function SignInPage() {
           setFormError(mapAuthError(error.message));
           return;
         }
-        // Root '/' product'a göre /dashboard ya da /onboarding'e yönlendiriyor.
-        window.location.assign("/");
+        window.location.assign(next);
       } else {
         const { data, error } = await signUpWithPassword(email, password);
         if (error) {
@@ -58,7 +73,7 @@ export default function SignInPage() {
           return;
         }
         if (data.session) {
-          window.location.assign("/");
+          window.location.assign(next);
         } else {
           setInfo(
             "Account created. Click the verification link we sent to your email.",
@@ -76,7 +91,7 @@ export default function SignInPage() {
     clearMessages();
     setGoogleLoading(true);
     try {
-      const { error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle(next);
       if (error) {
         setFormError(mapAuthError(error.message));
         setGoogleLoading(false);

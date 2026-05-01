@@ -42,26 +42,31 @@ type Range = "7D" | "30D" | "YTD";
 export default function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>("7D");
 
   useEffect(() => {
     (async () => {
-      const first = await fetch("/api/products?first=1").then((r) => r.json());
-      if (!first.product) {
-        setError("no-product");
-        return;
+      try {
+        const first = await fetch("/api/products?first=1").then((r) => r.json());
+        if (!first.product) {
+          setError("no-product");
+          return;
+        }
+        const res = await fetch(`/api/dashboard?productId=${first.product.id}`);
+        const json = await res.json();
+        if (!res.ok) {
+          setError(json.error ?? "failed");
+          return;
+        }
+        setData(json);
+      } finally {
+        setLoading(false);
       }
-      const res = await fetch(`/api/dashboard?productId=${first.product.id}`);
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "failed");
-        return;
-      }
-      setData(json);
     })();
   }, []);
 
-  if (error === "no-product") return <EmptyState />;
+  if (!loading && error === "no-product") return <EmptyState />;
 
   return (
     <>
@@ -71,30 +76,40 @@ export default function DashboardClient() {
       />
       <main className="flex-1 space-y-5 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6 md:px-8 md:py-8">
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-          <MetricCard
-            label="High-Intent Leads"
-            value={data?.metrics.highIntentCount ?? 0}
-            trend={`+${Math.max(0, data?.metrics.highIntentCount ?? 0)} today`}
-            trendTone="up"
-            icon={<IconUser className="h-4 w-4" />}
-            spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
-          />
-          <MetricCard
-            label="Active Threads"
-            value={data?.metrics.activeThreads ?? 0}
-            trend="→ Steady"
-            trendTone="neutral"
-            icon={<IconChat className="h-4 w-4" />}
-            spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
-          />
-          <MetricCard
-            label="Conversion Rate"
-            value={data?.metrics.conversionRate ?? 0}
-            suffix="%"
-            trend={`${data?.metrics.conversionRate ? "+" : ""}${data?.metrics.conversionRate ?? 0}% this week`}
-            trendTone="up"
-            icon={<IconFlame className="h-4 w-4" />}
-          />
+          {loading ? (
+            <>
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+            </>
+          ) : (
+            <>
+              <MetricCard
+                label="High-Intent Leads"
+                value={data?.metrics.highIntentCount ?? 0}
+                trend={`+${Math.max(0, data?.metrics.highIntentCount ?? 0)} today`}
+                trendTone="up"
+                icon={<IconUser className="h-4 w-4" />}
+                spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
+              />
+              <MetricCard
+                label="Active Threads"
+                value={data?.metrics.activeThreads ?? 0}
+                trend="→ Steady"
+                trendTone="neutral"
+                icon={<IconChat className="h-4 w-4" />}
+                spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
+              />
+              <MetricCard
+                label="Conversion Rate"
+                value={data?.metrics.conversionRate ?? 0}
+                suffix="%"
+                trend={`${data?.metrics.conversionRate ? "+" : ""}${data?.metrics.conversionRate ?? 0}% this week`}
+                trendTone="up"
+                icon={<IconFlame className="h-4 w-4" />}
+              />
+            </>
+          )}
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -125,15 +140,19 @@ export default function DashboardClient() {
               </div>
             </div>
             <div className="px-1 pb-4 sm:px-2">
-              <AreaChart
-                data={(data?.velocity ?? []).map((v) => ({
-                  label: new Date(v.date).toLocaleDateString(undefined, {
-                    weekday: "short",
-                  }),
-                  value: v.count,
-                }))}
-                height={220}
-              />
+              {loading ? (
+                <div className="h-[220px] animate-pulse rounded-xl bg-ink-100" />
+              ) : (
+                <AreaChart
+                  data={(data?.velocity ?? []).map((v) => ({
+                    label: new Date(v.date).toLocaleDateString(undefined, {
+                      weekday: "short",
+                    }),
+                    value: v.count,
+                  }))}
+                  height={220}
+                />
+              )}
             </div>
           </Card>
 
@@ -145,13 +164,23 @@ export default function DashboardClient() {
               </h2>
             </div>
             <div className="space-y-3 px-3 pb-4 pt-3 sm:px-4 sm:pt-4">
-              {(data?.intelligenceFeed ?? []).map((item) => (
-                <IntelligenceCard key={item.id} item={item} />
-              ))}
-              {data && data.intelligenceFeed.length === 0 && (
-                <div className="rounded-xl border border-dashed border-ink-200 p-6 text-center text-xs text-ink-400">
-                  No insights yet. Fetch posts from the Power Feed to start.
-                </div>
+              {loading ? (
+                <>
+                  <IntelligenceCardSkeleton />
+                  <IntelligenceCardSkeleton />
+                  <IntelligenceCardSkeleton />
+                </>
+              ) : (
+                <>
+                  {(data?.intelligenceFeed ?? []).map((item) => (
+                    <IntelligenceCard key={item.id} item={item} />
+                  ))}
+                  {data && data.intelligenceFeed.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-ink-200 p-6 text-center text-xs text-ink-400">
+                      No insights yet. Fetch posts from the Power Feed to start.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </Card>
@@ -159,6 +188,40 @@ export default function DashboardClient() {
 
       </main>
     </>
+  );
+}
+
+function MetricCardSkeleton() {
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between">
+        <div className="h-3 w-24 animate-pulse rounded bg-ink-100" />
+        <div className="h-7 w-7 animate-pulse rounded-lg bg-ink-100" />
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="space-y-2">
+          <div className="h-8 w-16 animate-pulse rounded bg-ink-100" />
+          <div className="h-3 w-20 animate-pulse rounded bg-ink-100" />
+        </div>
+        <div className="h-6 w-20 animate-pulse rounded bg-ink-100 opacity-80" />
+      </div>
+    </Card>
+  );
+}
+
+function IntelligenceCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-ink-200/60 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-20 animate-pulse rounded bg-ink-100" />
+        <div className="h-3 w-8 animate-pulse rounded bg-ink-100" />
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <div className="h-3.5 w-full animate-pulse rounded bg-ink-100" />
+        <div className="h-3.5 w-3/4 animate-pulse rounded bg-ink-100" />
+      </div>
+      <div className="mt-2 h-3 w-16 animate-pulse rounded bg-ink-100" />
+    </div>
   );
 }
 

@@ -30,19 +30,39 @@ export async function scorePost(
     reason: string;
     riskLevel?: RiskLevel;
   }>({
-    system:
-      "You score a Reddit post for buying intent toward a given product. " +
-      "Return JSON only. Schema: " +
-      '{"intentScore": integer 0-100, "reason": string (<= 280 chars, cite concrete phrases), ' +
-      '"riskLevel": "safe" | "review" | "high_risk"}. ' +
-      'riskLevel: "high_risk" if the post is self-promo, NSFW, hostile, or brigade-worthy; ' +
+    system: [
+      "You score a Reddit post for BUYING INTENT toward a given product.",
+      "Return JSON only.",
+      "",
+      "CRITICAL — Read `product.buyerPersona` first. It describes the RANGE of people we want as leads.",
+      "  • buyerPersona often covers multiple roles (freelancer, agency, small business owner, marketer). Match ANY of them.",
+      "  • Be GENEROUS with persona matching: if the author has the same PROBLEM the product solves, they are a lead — even if their job title differs from the persona description.",
+      "  • Only cap at 25 if the author is clearly on the OPPOSITE side of the marketplace (e.g. a platform creator when the buyer is a consumer).",
+      "",
+      "Scoring rubric (spread scores across the full range — do NOT cluster at 30):",
+      "  • 85-100: strong persona match + explicitly asking for a tool/recommendation/alternative. Clear shopping signal.",
+      "  • 70-84: persona match + clear pain or workflow problem this product directly solves.",
+      "  • 50-69: persona match + relevant topic, expresses frustration or inefficiency even without explicit shopping signal.",
+      "  • 30-49: partial persona match or tangential topic with weak pain signal.",
+      "  • 0-29: off-topic, generic discussion, wrong side of marketplace, or self-promo.",
+      "",
+      "Rules:",
+      "  • Reward concrete buying language: 'looking for', 'recommend', 'alternative to', 'tool that', 'how do I', 'struggling with'.",
+      "  • Penalize self-promo posts (someone advertising their own thing).",
+      "  • `reason` must quote 1-2 concrete phrases from the post (≤ 280 chars) AND explain why the author does or does not match the buyerPersona.",
+      "",
+      'Schema: {"intentScore": integer 0-100, "reason": string, "riskLevel": "safe" | "review" | "high_risk"}. ',
+      'riskLevel: "high_risk" if self-promo, brigade-worthy, hostile, or violates subreddit norms; ',
       '"review" if ambiguous; otherwise "safe".',
+    ].join("\n"),
     user: JSON.stringify({
       product: {
         name: product.name,
         niche: product.niche,
         summary: product.summary,
+        buyerPersona: product.buyerPersona,
         keywords: product.keywords,
+        buyerContext: product.surveyAnswers ?? null,
       },
       post: {
         subreddit: post.subreddit,

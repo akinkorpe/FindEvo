@@ -21,13 +21,9 @@ export async function GET(request: Request) {
       { status: 400 },
     );
   }
-  const subreddit = url.searchParams.get("subreddit") ?? undefined;
-  const view = url.searchParams.get("view") ?? "all";
-  const minScore = view === "high-intent" ? 70 : 40;
-
   try {
     const [items, targets, sent] = await Promise.all([
-      listForProduct(productId, { subreddit, minScore, limit: 100 }),
+      listForProduct(productId, {}),
       listTargets(productId),
       listSent(productId),
     ]);

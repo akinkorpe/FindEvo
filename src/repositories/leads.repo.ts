@@ -31,6 +31,21 @@ export async function countByStatus(
   return count ?? 0;
 }
 
+export async function countAllStatuses(
+  productId: string,
+): Promise<Record<string, number>> {
+  const { data, error } = await getSupabaseServer()
+    .from("leads")
+    .select("status")
+    .eq("product_id", productId);
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export async function countAll(productId: string): Promise<number> {
   const { count, error } = await getSupabaseServer()
     .from("leads")
@@ -126,20 +141,38 @@ export async function leadVelocity(
 ): Promise<{ date: string; count: number }[]> {
   const sb = getSupabaseServer();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await sb
+
+  // Group by date in the database instead of fetching all rows
+  const { data, error } = await (sb as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => { data: { date: string; count: number }[] | null; error: unknown };
+  }).rpc("lead_velocity_by_day", { p_product_id: productId, p_since: since });
+
+  if (!error && data) {
+    // Fill in missing days with 0
+    const byDate = new Map((data as { date: string; count: number }[]).map((r) => [r.date, Number(r.count)]));
+    const result: { date: string; count: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      result.push({ date: key, count: byDate.get(key) ?? 0 });
+    }
+    return result;
+  }
+
+  // Fallback: fetch rows and bucket in JS
+  const { data: rows, error: rowsError } = await sb
     .from("leads")
     .select("created_at")
     .eq("product_id", productId)
     .gte("created_at", since);
-  if (error) throw error;
+  if (rowsError) throw rowsError;
 
   const buckets = new Map<string, number>();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const key = d.toISOString().slice(0, 10);
-    buckets.set(key, 0);
+    buckets.set(d.toISOString().slice(0, 10), 0);
   }
-  for (const row of data ?? []) {
+  for (const row of rows ?? []) {
     const key = new Date(row.created_at).toISOString().slice(0, 10);
     if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
   }

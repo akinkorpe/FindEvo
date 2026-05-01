@@ -14,14 +14,24 @@ export async function recordUsage(
 }
 
 export async function creditBalance(productId: string | null): Promise<number> {
-  let q = getSupabaseServer().from("ai_credits").select("amount");
-  q = productId ? q.eq("product_id", productId) : q.is("product_id", null);
+  const sb = getSupabaseServer();
+  // Use DB-level aggregation instead of fetching all rows
+  const q = productId
+    ? sb.from("ai_credits").select("amount.sum()").eq("product_id", productId)
+    : sb.from("ai_credits").select("amount.sum()").is("product_id", null);
   const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []).reduce(
-    (acc: number, row: { amount: number }) => acc + row.amount,
-    0,
-  );
+  if (!error && data?.[0] != null) {
+    const row = data[0] as unknown as { sum: number | null };
+    return row.sum ?? 0;
+  }
+  // Fallback to row-by-row sum if aggregation unsupported
+  let qFallback = sb.from("ai_credits").select("amount");
+  qFallback = productId
+    ? qFallback.eq("product_id", productId)
+    : qFallback.is("product_id", null);
+  const { data: rows, error: rowsError } = await qFallback;
+  if (rowsError) throw rowsError;
+  return (rows ?? []).reduce((acc: number, row: { amount: number }) => acc + row.amount, 0);
 }
 
 function startOfDayUtc(): string {
@@ -42,15 +52,27 @@ export async function usageSince(
   kind: CreditKind,
   sinceIso: string,
 ): Promise<number> {
+  // Fetch only negative spend rows and aggregate in DB
   const { data, error } = await getSupabaseServer()
+    .from("ai_credits")
+    .select("amount.sum()")
+    .eq("product_id", productId)
+    .eq("kind", kind)
+    .gte("created_at", sinceIso)
+    .lt("amount", 0);
+  if (!error && data?.[0] != null) {
+    const row = data[0] as unknown as { sum: number | null };
+    return Math.abs(row.sum ?? 0);
+  }
+  // Fallback
+  const { data: rows, error: rowsError } = await getSupabaseServer()
     .from("ai_credits")
     .select("amount")
     .eq("product_id", productId)
     .eq("kind", kind)
     .gte("created_at", sinceIso);
-  if (error) throw error;
-  // Usage rows are stored with negative amounts (spend). Count absolute spend.
-  return (data ?? []).reduce((acc: number, row: { amount: number }) => {
+  if (rowsError) throw rowsError;
+  return (rows ?? []).reduce((acc: number, row: { amount: number }) => {
     return row.amount < 0 ? acc + Math.abs(row.amount) : acc;
   }, 0);
 }

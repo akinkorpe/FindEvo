@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient, createServerClient, type CookieOptions } from "@supabase/ssr";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_PUBLISHABLE_KEY =
@@ -20,41 +21,59 @@ export function getSupabaseBrowser(): SupabaseClient {
     );
   }
   if (!browserClient) {
-    browserClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: "implicit",
-      },
-    });
+    browserClient = createBrowserClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   }
   return browserClient;
 }
 
-let serverClient: SupabaseClient | null = null;
+let adminClient: SupabaseClient | null = null;
 
 /**
- * Server-side client. Uses the service role key when available (bypasses RLS);
- * otherwise falls back to the publishable key so local dev works with a single
- * key. Never import this into client components.
+ * Admin client using the service role key. Bypasses RLS — use only for
+ * trusted server-only operations (cron, ingestion, system jobs). Never use
+ * for user-driven requests; prefer getSupabaseRSC() so RLS applies.
  */
-export function getSupabaseServer(): SupabaseClient {
+export function getSupabaseAdmin(): SupabaseClient {
   if (!SUPABASE_URL) {
-    throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL.",
-    );
+    throw new Error("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL.");
   }
-  const key = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_PUBLISHABLE_KEY;
-  if (!key) {
-    throw new Error(
-      "Supabase is not configured. Provide SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
-    );
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for admin operations.");
   }
-  if (!serverClient) {
-    serverClient = createClient(SUPABASE_URL, key, {
-      auth: { persistSession: false },
+  if (!adminClient) {
+    adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
   }
-  return serverClient;
+  return adminClient;
 }
+
+/**
+ * Backwards-compatible alias for legacy callers (repositories). Returns the
+ * admin client (service role) — bypasses RLS, so application code MUST scope
+ * by owner_id where relevant. New code should prefer getSupabaseRSC() from
+ * "@/lib/supabase.server".
+ */
+export function getSupabaseServer(): SupabaseClient {
+  return getSupabaseAdmin();
+}
+
+/**
+ * Build a server client wired to a specific cookie pair (for use inside
+ * middleware where the request/response objects own cookie I/O).
+ */
+export function createMiddlewareSupabase(
+  getAll: () => { name: string; value: string }[],
+  setAll: (
+    cookies: { name: string; value: string; options: CookieOptions }[],
+  ) => void,
+): SupabaseClient {
+  return createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    cookies: { getAll, setAll },
+  });
+}
+
+export const SUPABASE_PUBLIC_CONFIG = {
+  url: SUPABASE_URL,
+  anonKey: SUPABASE_PUBLISHABLE_KEY,
+};

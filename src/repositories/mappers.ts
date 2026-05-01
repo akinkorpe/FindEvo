@@ -21,6 +21,7 @@ export function mapProduct(row: any): Product {
     name: row.name ?? null,
     niche: row.niche ?? null,
     summary: row.summary ?? null,
+    buyerPersona: row.buyer_persona ?? null,
     keywords: row.keywords ?? [],
     subreddits: row.subreddits ?? [],
     surveyAnswers: hasSurvey ? (sa as Product["surveyAnswers"]) : null,

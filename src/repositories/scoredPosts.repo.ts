@@ -31,6 +31,24 @@ export async function upsertScored(
   return { id: data.id };
 }
 
+export async function countForProduct(
+  productId: string,
+  opts: { minScore?: number } = {},
+): Promise<number> {
+  let query = getSupabaseServer()
+    .from("scored_posts")
+    .select("*", { count: "exact", head: true })
+    .eq("product_id", productId)
+    .eq("dismissed", false)
+    .or("expires_at.is.null,expires_at.gt.now()");
+  if (opts.minScore !== undefined) {
+    query = query.gte("intent_score", opts.minScore);
+  }
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function listForProduct(
   productId: string,
   opts: { subreddit?: string; minScore?: number; limit?: number } = {},

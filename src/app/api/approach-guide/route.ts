@@ -2,6 +2,7 @@ import { handle } from "@/controllers/approachGuide.controller";
 import { handleJson } from "../_utils";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   return handleJson(request, (body) => handle(body));

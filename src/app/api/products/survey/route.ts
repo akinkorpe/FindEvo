@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { saveSurveyAnswers } from "@/repositories/products.repo";
+import { getProduct, saveSurveyAnswers } from "@/repositories/products.repo";
 import type { SurveyAnswers } from "@/types";
+import { requireUser, UnauthorizedError } from "../../_auth";
 
 export const runtime = "nodejs";
 
@@ -20,11 +21,14 @@ function isOneOf<T extends readonly string[]>(
 
 export async function POST(request: Request) {
   try {
+    const user = await requireUser();
     const body = (await request.json()) as {
       productId?: string;
       answers?: Partial<SurveyAnswers>;
     };
     if (!body.productId) throw new Error("`productId` required");
+    const owned = await getProduct(body.productId, user.id);
+    if (!owned) throw new Error("product not found");
     const a = body.answers ?? {};
     if (
       !isOneOf(GOALS, a.goal) ||
@@ -47,6 +51,9 @@ export async function POST(request: Request) {
     const product = await saveSurveyAnswers(body.productId, answers);
     return NextResponse.json({ ok: true, product });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 401 });
+    }
     const message = err instanceof Error ? err.message : "error";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

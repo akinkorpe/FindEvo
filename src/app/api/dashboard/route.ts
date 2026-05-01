@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   countAll,
-  countByStatus,
+  countAllStatuses,
   leadVelocity,
   listLeads,
 } from "@/repositories/leads.repo";
-import { listForProduct } from "@/repositories/scoredPosts.repo";
+import { countForProduct, listForProduct } from "@/repositories/scoredPosts.repo";
 import { listTargets } from "@/repositories/subreddits.repo";
 import { creditBalance } from "@/repositories/aiCredits.repo";
 import { getProduct } from "@/repositories/products.repo";
+import { requireUser, UnauthorizedError } from "../_auth";
 
 export const runtime = "nodejs";
 
@@ -32,27 +33,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    const product = await getProduct(productId);
+    const user = await requireUser();
+    const product = await getProduct(productId, user.id);
     if (!product) throw new Error("product not found");
 
     const [
       highIntentCount,
       totalLeads,
-      activePipeline,
-      engaged,
-      converted,
+      statusCounts,
       velocity,
       feed,
       targets,
       usageBalance,
       recentLeads,
     ] = await Promise.all([
-      // High-intent = intent_score >= 70
-      listForProduct(productId, { minScore: 70, limit: 1000 }).then((l) => l.length),
+      countForProduct(productId, { minScore: 25 }),
       countAll(productId),
-      countByStatus(productId, "active_pipeline"),
-      countByStatus(productId, "engaged"),
-      countByStatus(productId, "converted"),
+      countAllStatuses(productId),
       leadVelocity(productId, 7),
       listForProduct(productId, { limit: 3 }),
       listTargets(productId),
@@ -60,6 +57,9 @@ export async function GET(request: Request) {
       listLeads(productId, { limit: 5 }),
     ]);
 
+    const activePipeline = statusCounts["active_pipeline"] ?? 0;
+    const engaged = statusCounts["engaged"] ?? 0;
+    const converted = statusCounts["converted"] ?? 0;
     const activeThreads = activePipeline + engaged;
     const contactedish = converted + activePipeline + engaged;
     const conversionRate =
@@ -136,6 +136,9 @@ export async function GET(request: Request) {
       recentLeads,
     });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 401 });
+    }
     const message = err instanceof Error ? err.message : "error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

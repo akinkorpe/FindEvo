@@ -530,7 +530,7 @@ function AccountTab({ product }: { product: Product }) {
         <div className="mb-4">
           <h2 className="text-base font-semibold text-ink-900">Appearance</h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            Choose how RedditLeads looks. System matches your device setting.
+            Choose how FindEvo looks. System matches your device setting.
           </p>
         </div>
         <ThemeToggle />
@@ -780,7 +780,7 @@ function AccountProfileCard() {
       <div className="mb-4">
         <h2 className="text-base font-semibold text-ink-900">Profile</h2>
         <p className="mt-0.5 text-xs text-ink-500">
-          Your signed-in account on RedditLeads.
+          Your signed-in account on FindEvo.
         </p>
       </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -26,19 +26,14 @@ export function LogoMark({ className = "" }: { className?: string }) {
 }
 
 export function Logo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const dims =
-    size === "sm" ? "h-5 w-5" : size === "lg" ? "h-8 w-8" : "h-6 w-6";
   const text =
-    size === "sm" ? "text-sm" : size === "lg" ? "text-xl" : "text-base";
+    size === "sm" ? "text-[15px]" : size === "lg" ? "text-[22px]" : "text-[18px]";
   return (
-    <div className="flex items-center gap-2">
-      <LogoMark className={dims} />
-      <Link
-        href="/onboarding"
-        className={`font-heading font-semibold tracking-tight text-ink-900 ${text} hover:text-ink-700`}
-      >
-        RedditLeads
-      </Link>
-    </div>
+    <Link
+      href="/onboarding"
+      className={`font-[family-name:var(--font-brand)] tracking-tight text-[#12B886] ${text} transition hover:opacity-80`}
+    >
+      FindEvo
+    </Link>
   );
 }

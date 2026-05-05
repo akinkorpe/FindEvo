@@ -349,17 +349,9 @@ function Bullet({ children }: { children: ReactNode }) {
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-card">
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
-          <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-          <circle cx="12" cy="12" r="3" fill="currentColor" />
-        </svg>
-      </span>
-      <span className="font-heading text-[18px] font-semibold tracking-tight text-white">
-        RedditLeads
-      </span>
-    </div>
+    <span className="font-[family-name:var(--font-brand)] text-[22px] tracking-tight text-[#12B886]">
+      FindEvo
+    </span>
   );
 }
 

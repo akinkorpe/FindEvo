@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { ReactNode, SVGProps } from "react";
+import { PrivacyPolicyTrigger } from "@/components/legal/PrivacyPolicyTrigger";
+import { Wordmark } from "@/components/brand/Wordmark";
 
 export const metadata = {
-  title: "RedditLeads — Find customers on Reddit without getting banned",
+  title: "FindEvo — Find customers on Reddit without getting banned",
   description:
     "Discover high-intent posts, understand subreddit rules, and respond like a human. Not an AI spam tool.",
 };
@@ -17,7 +19,6 @@ export default function LandingPage() {
       <Features />
       <Comparison />
       <ProductPreview />
-      <Pricing />
       <FinalCta />
       <Footer />
     </div>
@@ -31,14 +32,12 @@ function Nav() {
     <header className="sticky top-0 z-40 border-b border-ink-100/70 bg-surface/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6">
         <Link href="/landing" className="flex items-center gap-2">
-          <Logo className="h-7 w-7" />
-          <span className="text-[15px] font-semibold tracking-tight">RedditLeads</span>
+          <Wordmark className="text-[18px]" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-ink-600 md:flex">
           <a href="#how" className="hover:text-ink-900">How it works</a>
           <a href="#features" className="hover:text-ink-900">Features</a>
           <a href="#compare" className="hover:text-ink-900">Why us</a>
-          <a href="#pricing" className="hover:text-ink-900">Pricing</a>
         </nav>
         <div className="flex items-center gap-2">
           <Link
@@ -69,14 +68,14 @@ function Hero() {
             New: Semantic intent scoring
           </Eyebrow>
           <h1 className="mt-5 text-3xl font-semibold leading-[1.1] tracking-tight text-ink-900 sm:mt-6 sm:text-5xl sm:leading-[1.05] lg:text-6xl">
-            Find customers on Reddit.
+            Find the right people on Reddit.
             <br />
             <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent">
-              Without getting banned.
+              Grow with authentic conversations.
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-ink-600 sm:mt-6 sm:text-lg">
-            Not another AI spam tool. RedditLeads surfaces buying-intent threads,
+            Not another AI spam tool. FindEvo surfaces buying-intent threads,
             reads each subreddit&apos;s rules, and helps you respond like a human —
             so you grow without burning karma.
           </p>
@@ -89,9 +88,6 @@ function Hero() {
               See the product
             </a>
           </div>
-          <p className="mt-4 text-xs text-ink-500">
-            Free for 5 keywords · Disconnect any time
-          </p>
         </div>
 
         <div className="relative mx-auto mt-10 max-w-5xl sm:mt-16">
@@ -283,7 +279,7 @@ function Comparison() {
       <div className="mt-10 overflow-hidden rounded-2xl border border-ink-100 bg-surface shadow-card sm:mt-12">
         <div className="grid grid-cols-[1.4fr_1fr_1fr] border-b border-ink-100 bg-surface-muted/60 text-[10px] font-semibold uppercase tracking-wider text-ink-500 sm:grid-cols-3 sm:text-xs">
           <div className="px-3 py-3 sm:px-6 sm:py-4">Capability</div>
-          <div className="px-2 py-3 text-center text-brand-700 sm:px-6 sm:py-4">RedditLeads</div>
+          <div className="px-2 py-3 text-center text-brand-700 sm:px-6 sm:py-4">FindEvo</div>
           <div className="px-2 py-3 text-center sm:px-6 sm:py-4">Other tools</div>
         </div>
         {rows.map((r, i) => (
@@ -356,108 +352,6 @@ function ProductPreview() {
   );
 }
 
-/* ---------- Pricing ---------- */
-
-function Pricing() {
-  const tiers = [
-    {
-      name: "Free",
-      price: "$0",
-      tag: "For trying it out",
-      features: ["5 keywords", "1 workspace", "Daily intent digest", "Community support"],
-      cta: "Start free",
-      highlighted: false,
-    },
-    {
-      name: "Founder",
-      price: "$29",
-      tag: "Most popular",
-      features: [
-        "50 keywords",
-        "Real-time alerts",
-        "Mod history & rule parsing",
-        "Approach drafts",
-        "3 team seats",
-      ],
-      cta: "Start 14-day trial",
-      highlighted: true,
-    },
-    {
-      name: "Team",
-      price: "$99",
-      tag: "Growing companies",
-      features: [
-        "Unlimited keywords",
-        "Slack & webhooks",
-        "Account safety scoring",
-        "Priority support",
-        "10 team seats",
-      ],
-      cta: "Start trial",
-      highlighted: false,
-    },
-  ];
-  return (
-    <section id="pricing" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-      <SectionHeader
-        eyebrow="Pricing"
-        title="Honest pricing. No 'Contact sales' games."
-        sub="Cancel any time. Keep your data."
-      />
-      <div className="mt-14 grid gap-6 md:grid-cols-3">
-        {tiers.map((t) => (
-          <div
-            key={t.name}
-            className={
-              "relative flex flex-col rounded-2xl border p-7 transition " +
-              (t.highlighted
-                ? "border-brand-500/40 bg-surface shadow-pop ring-1 ring-brand-500/20"
-                : "border-ink-100 bg-surface shadow-card hover:shadow-pop")
-            }
-          >
-            {t.highlighted && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white shadow-pop">
-                {t.tag}
-              </span>
-            )}
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-lg font-semibold text-ink-900">{t.name}</h3>
-              {!t.highlighted && (
-                <span className="text-[11px] font-medium uppercase tracking-wider text-ink-500">
-                  {t.tag}
-                </span>
-              )}
-            </div>
-            <div className="mt-5 flex items-baseline gap-1.5">
-              <span className="text-4xl font-semibold tracking-tight text-ink-900">{t.price}</span>
-              <span className="text-sm text-ink-500">/mo</span>
-            </div>
-            <ul className="mt-7 space-y-3 text-[15px] text-ink-700">
-              {t.features.map((f) => (
-                <li key={f} className="flex gap-2.5">
-                  <CheckIcon className="mt-1 h-4 w-4 shrink-0 text-brand-600" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/signin"
-              className={
-                "mt-8 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium transition " +
-                (t.highlighted
-                  ? "bg-ink-900 text-white hover:bg-ink-800"
-                  : "border border-ink-200 bg-surface text-ink-900 hover:border-ink-300")
-              }
-            >
-              {t.cta}
-            </Link>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /* ---------- Final CTA ---------- */
 
 function FinalCta() {
@@ -488,9 +382,6 @@ function FinalCta() {
               How it works
             </a>
           </div>
-          <p className="mt-4 text-xs text-ink-400">
-            Free forever for 5 keywords · No credit card
-          </p>
         </div>
       </div>
     </section>
@@ -504,17 +395,15 @@ function Footer() {
     <footer className="border-t border-ink-100 bg-surface">
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-6 sm:py-10">
         <div className="flex items-center gap-2">
-          <Logo className="h-6 w-6" />
-          <span className="text-sm font-semibold tracking-tight">RedditLeads</span>
+          <Wordmark className="text-[15px]" />
         </div>
         <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-500">
           <a href="#features" className="hover:text-ink-900">Product</a>
-          <a href="#pricing" className="hover:text-ink-900">Pricing</a>
-          <a href="#" className="hover:text-ink-900">Privacy</a>
-          <a href="#" className="hover:text-ink-900">Terms</a>
-          <a href="mailto:hello@redditleads.com" className="hover:text-ink-900">Contact</a>
+          <PrivacyPolicyTrigger className="hover:text-ink-900" variant="privacy" />
+          <PrivacyPolicyTrigger className="hover:text-ink-900" variant="terms" />
+          <a href="mailto:contact@findevo.com" className="hover:text-ink-900">Contact</a>
         </nav>
-        <p className="text-xs text-ink-400">© {new Date().getFullYear()} RedditLeads</p>
+        <p className="text-xs text-ink-400">© {new Date().getFullYear()} FindEvo</p>
       </div>
     </footer>
   );
@@ -579,7 +468,7 @@ function FeedMock() {
         <span className="h-2.5 w-2.5 rounded-full bg-ink-200" />
         <span className="h-2.5 w-2.5 rounded-full bg-ink-200" />
         <span className="h-2.5 w-2.5 rounded-full bg-ink-200" />
-        <div className="ml-3 text-xs font-medium text-ink-500">RedditLeads · Feed</div>
+        <div className="ml-3 text-xs font-medium text-ink-500">FindEvo · Feed</div>
       </div>
       <div className="grid grid-cols-12 divide-x divide-ink-100">
         <aside className="col-span-12 p-4 sm:col-span-4 lg:col-span-3">
@@ -829,7 +718,7 @@ function ApproachVisual() {
         </li>
         <li className="flex gap-2">
           <span className="text-brand-600">·</span>
-          <span>Mention RedditLeads only if asked — this sub bans top-level promo.</span>
+          <span>Mention FindEvo only if asked — this sub bans top-level promo.</span>
         </li>
       </ul>
       <div className="mt-4 rounded-lg border border-dashed border-ink-200 bg-surface-muted/50 p-3 text-[12px] italic text-ink-500">

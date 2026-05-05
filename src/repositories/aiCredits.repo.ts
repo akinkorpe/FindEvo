@@ -92,9 +92,9 @@ export async function monthlyUsage(
 }
 
 export const RATE_LIMITS = {
-  score_post: { window: "day" as const, max: 10000 },
-  approach_guide: { window: "day" as const, max: 2000 },
-  analyze_site: { window: "month" as const, max: 500 },
+  score_post: { window: "day" as const, max: 100 },
+  approach_guide: { window: "day" as const, max: 20 },
+  analyze_site: { window: "month" as const, max: 5 },
 };
 
 export interface RateLimitStatus {

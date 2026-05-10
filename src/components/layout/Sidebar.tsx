@@ -21,14 +21,15 @@ interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
+  comingSoon?: boolean;
 }
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: <IconGrid className="h-4 w-4" /> },
   { href: "/feed", label: "Power Feed", icon: <IconLayers className="h-4 w-4" /> },
   { href: "/leads", label: "CRM Leads", icon: <IconNetwork className="h-4 w-4" /> },
-  { href: "/monitor", label: "Reddit Monitor", icon: <IconChart className="h-4 w-4" /> },
-  { href: "/automations", label: "Automations", icon: <IconSparkles className="h-4 w-4" /> },
+  { href: "/monitor", label: "Reddit Monitor", icon: <IconChart className="h-4 w-4" />, comingSoon: true },
+  { href: "/automations", label: "Automations", icon: <IconSparkles className="h-4 w-4" />, comingSoon: true },
   { href: "/settings", label: "Settings", icon: <IconSettings className="h-4 w-4" /> },
 ];
 
@@ -57,8 +58,26 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       <nav className="mt-6 flex-1 overflow-y-auto px-3">
         {NAV.map((item) => {
           const active =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
+            !item.comingSoon &&
+            (pathname === item.href ||
+              (item.href !== "/" && pathname.startsWith(item.href)));
+
+          if (item.comingSoon) {
+            return (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                className="group mb-0.5 flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-400"
+              >
+                <span className="text-ink-300">{item.icon}</span>
+                {item.label}
+                <span className="ml-auto rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+                  Soon
+                </span>
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.href}

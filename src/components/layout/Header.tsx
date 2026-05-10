@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
-import { IconBell, IconMenu, IconUser } from "@/components/ui/Icons";
+import { IconMenu, IconUser } from "@/components/ui/Icons";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useAppShell } from "@/components/layout/AppShell";
 
@@ -32,13 +32,6 @@ export function Header({ title, right }: Props) {
       </h1>
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         {right && <div className="hidden sm:block">{right}</div>}
-        <button
-          className="relative hidden h-9 w-9 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100 sm:flex"
-          aria-label="Notifications"
-        >
-          <IconBell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-        </button>
         <Link
           href="/settings?tab=account"
           aria-label="Account"

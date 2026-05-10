@@ -738,7 +738,7 @@ function AccountProfileCard() {
   async function handleSignOut() {
     setSigningOut(true);
     await signOut();
-    window.location.assign("/signin");
+    window.location.assign("/landing");
   }
 
   if (loading) {

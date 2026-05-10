@@ -14,10 +14,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-surface text-ink-900">
       <Nav />
       <Hero />
-      <TrustStrip />
       <HowItWorks />
       <Features />
-      <Comparison />
       <ProductPreview />
       <FinalCta />
       <Footer />
@@ -37,7 +35,6 @@ function Nav() {
         <nav className="hidden items-center gap-8 text-sm text-ink-600 md:flex">
           <a href="#how" className="hover:text-ink-900">How it works</a>
           <a href="#features" className="hover:text-ink-900">Features</a>
-          <a href="#compare" className="hover:text-ink-900">Why us</a>
         </nav>
         <div className="flex items-center gap-2">
           <Link
@@ -93,31 +90,6 @@ function Hero() {
         <div className="relative mx-auto mt-10 max-w-5xl sm:mt-16">
           <div className="absolute -inset-x-8 -top-8 -z-10 h-72 rounded-[2rem] bg-gradient-to-b from-brand-100/60 to-transparent blur-2xl" />
           <FeedMock />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------- Trust strip ---------- */
-
-function TrustStrip() {
-  const logos = ["Lattice", "Linear", "Mercury", "Cron", "Vercel", "Plain"];
-  return (
-    <section className="border-y border-ink-100 bg-surface-muted/60">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        <p className="text-center text-xs font-medium uppercase tracking-[0.14em] text-ink-500">
-          Trusted by founders shipping organic growth at
-        </p>
-        <div className="mt-6 grid grid-cols-3 items-center gap-x-6 gap-y-4 sm:grid-cols-6">
-          {logos.map((l) => (
-            <div
-              key={l}
-              className="text-center text-[15px] font-semibold tracking-tight text-ink-400"
-            >
-              {l}
-            </div>
-          ))}
         </div>
       </div>
     </section>
@@ -202,14 +174,7 @@ function Features() {
             visual={<RulesVisual />}
           />
           <FeatureCard
-            className="lg:col-span-5"
-            icon={<HistoryIcon className="h-5 w-5" />}
-            title="Mod action history"
-            body="See which accounts got banned for what — and avoid repeating their mistakes."
-            visual={<ModHistoryVisual />}
-          />
-          <FeatureCard
-            className="lg:col-span-7"
+            className="lg:col-span-12"
             icon={<PenIcon className="h-5 w-5" />}
             title="Approach drafts, not auto-comments"
             body="We give you angles, talking points, and tone — never a finished comment. You stay in your voice."
@@ -255,75 +220,6 @@ function FeatureCard({
       <p className="mt-2 max-w-md text-[15px] leading-relaxed text-ink-600">{body}</p>
       <div className="mt-7">{visual}</div>
     </div>
-  );
-}
-
-/* ---------- Comparison ---------- */
-
-function Comparison() {
-  const rows = [
-    { label: "Posts AI-generated comments", us: false, them: true },
-    { label: "Reads each subreddit's rules", us: true, them: false },
-    { label: "Tracks mod-ban history", us: true, them: false },
-    { label: "Scores genuine buying intent", us: true, them: "Keyword match" },
-    { label: "Writes in your voice", us: true, them: false },
-    { label: "Likely to get you banned", us: false, them: true },
-  ];
-  return (
-    <section id="compare" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-      <SectionHeader
-        eyebrow="The honest part"
-        title="Why other Reddit tools fail"
-        sub="They blast AI comments at scale. Reddit catches on in days. Your account is gone in weeks."
-      />
-      <div className="mt-10 overflow-hidden rounded-2xl border border-ink-100 bg-surface shadow-card sm:mt-12">
-        <div className="grid grid-cols-[1.4fr_1fr_1fr] border-b border-ink-100 bg-surface-muted/60 text-[10px] font-semibold uppercase tracking-wider text-ink-500 sm:grid-cols-3 sm:text-xs">
-          <div className="px-3 py-3 sm:px-6 sm:py-4">Capability</div>
-          <div className="px-2 py-3 text-center text-brand-700 sm:px-6 sm:py-4">FindEvo</div>
-          <div className="px-2 py-3 text-center sm:px-6 sm:py-4">Other tools</div>
-        </div>
-        {rows.map((r, i) => (
-          <div
-            key={r.label}
-            className={
-              "grid grid-cols-[1.4fr_1fr_1fr] items-center text-[13px] sm:grid-cols-3 sm:text-[15px] " +
-              (i < rows.length - 1 ? "border-b border-ink-100/70" : "")
-            }
-          >
-            <div className="px-3 py-3 text-ink-700 sm:px-6 sm:py-4">{r.label}</div>
-            <div className="px-2 py-3 text-center sm:px-6 sm:py-4">
-              <Cell value={r.us} positive />
-            </div>
-            <div className="px-2 py-3 text-center sm:px-6 sm:py-4">
-              <Cell value={r.them} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Cell({ value, positive = false }: { value: boolean | string; positive?: boolean }) {
-  if (typeof value === "string") {
-    return <span className="text-sm text-ink-500">{value}</span>;
-  }
-  if (value) {
-    return (
-      <span
-        className={
-          "inline-flex h-6 w-6 items-center justify-center rounded-full " +
-          (positive ? "bg-brand-50 text-brand-600" : "bg-ink-100 text-ink-500")
-        }
-      >
-        <CheckIcon className="h-3.5 w-3.5" />
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink-100 text-ink-400">
-      <XIcon className="h-3.5 w-3.5" />
-    </span>
   );
 }
 
@@ -674,33 +570,6 @@ function RuleRow({ label, ok, warning }: { label: string; ok?: boolean; warning?
   );
 }
 
-function ModHistoryVisual() {
-  const events = [
-    { user: "u/grow_hacker", action: "Banned · self-promo", days: 4 },
-    { user: "u/founder99", action: "Comment removed", days: 11 },
-    { user: "u/saas_kate", action: "Warned · low karma", days: 18 },
-  ];
-  return (
-    <ul className="space-y-1.5">
-      {events.map((e) => (
-        <li
-          key={e.user}
-          className="flex items-center justify-between rounded-lg border border-ink-100 bg-surface px-3 py-2 text-[13px]"
-        >
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-danger-50 text-danger-500">
-              <AlertIcon className="h-3 w-3" />
-            </span>
-            <span className="font-medium text-ink-800">{e.user}</span>
-          </div>
-          <span className="text-ink-500">{e.action}</span>
-          <span className="text-xs text-ink-400">{e.days}d ago</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function ApproachVisual() {
   return (
     <div className="rounded-xl border border-ink-100 bg-surface p-4">
@@ -897,15 +766,6 @@ function ShieldIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z" />
-    </svg>
-  );
-}
-function HistoryIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-      <path d="M3 3v5h5" />
-      <path d="M12 7v5l3 2" />
     </svg>
   );
 }

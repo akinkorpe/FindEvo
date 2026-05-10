@@ -1,5 +1,4 @@
 import { getSupabaseServer } from "@/lib/supabase";
-import { subredditExists } from "@/lib/reddit";
 import { mapSubredditTarget } from "./mappers";
 import type {
   SubredditPriority,
@@ -21,15 +20,9 @@ export async function addTarget(
   productId: string,
   name: string,
   priority: SubredditPriority = "standard",
-  options: { skipValidation?: boolean } = {},
+  _options: { skipValidation?: boolean } = {},
 ): Promise<SubredditTarget> {
   const clean = name.replace(/^r\//i, "");
-  if (!options.skipValidation) {
-    const exists = await subredditExists(clean);
-    if (!exists) {
-      throw new Error(`Subreddit r/${clean} does not exist or is private.`);
-    }
-  }
   const { data, error } = await getSupabaseServer()
     .from("subreddits")
     .upsert(
@@ -54,19 +47,6 @@ export async function replaceTargets(
     ),
   );
 
-  // Validate each candidate against Reddit before persisting. AI-suggested
-  // subs can be hallucinated; storing them poisons the feed (404s for the
-  // life of the product). Probes run in parallel with a small concurrency.
-  const validated: string[] = [];
-  const concurrency = 5;
-  for (let i = 0; i < cleanUnique.length; i += concurrency) {
-    const batch = cleanUnique.slice(i, i + concurrency);
-    const checks = await Promise.all(batch.map(subredditExists));
-    batch.forEach((name, idx) => {
-      if (checks[idx]) validated.push(name);
-    });
-  }
-
   const sb = getSupabaseServer();
   const { data: existing, error: listErr } = await sb
     .from("subreddits")
@@ -74,7 +54,7 @@ export async function replaceTargets(
     .eq("product_id", productId);
   if (listErr) throw listErr;
 
-  const wanted = new Set(validated.map((n) => n.toLowerCase()));
+  const wanted = new Set(cleanUnique.map((n) => n.toLowerCase()));
   const toDeleteIds = (existing ?? [])
     .filter((row) => !wanted.has(String(row.name).toLowerCase()))
     .map((row) => String(row.id));
@@ -87,12 +67,10 @@ export async function replaceTargets(
     if (delErr) throw delErr;
   }
 
-  for (const name of validated) {
-    await addTarget(productId, name, "standard", { skipValidation: true }).catch(
-      () => {
-        /* ignore dup */
-      },
-    );
+  for (const name of cleanUnique) {
+    await addTarget(productId, name, "standard").catch(() => {
+      /* ignore dup */
+    });
   }
 }
 

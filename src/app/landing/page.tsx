@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode, SVGProps } from "react";
-import { PrivacyPolicyTrigger } from "@/components/legal/PrivacyPolicyTrigger";
 import { Wordmark } from "@/components/brand/Wordmark";
 
 export const metadata = {
@@ -295,8 +294,8 @@ function Footer() {
         </div>
         <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-500">
           <a href="#features" className="hover:text-ink-900">Product</a>
-          <PrivacyPolicyTrigger className="hover:text-ink-900" variant="privacy" />
-          <PrivacyPolicyTrigger className="hover:text-ink-900" variant="terms" />
+          <Link href="/privacy" className="hover:text-ink-900">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-ink-900">Terms of Service</Link>
           <a href="mailto:contact@findevo.com" className="hover:text-ink-900">Contact</a>
         </nav>
         <p className="text-xs text-ink-400">© {new Date().getFullYear()} FindEvo</p>

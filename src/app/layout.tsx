@@ -38,6 +38,7 @@ export const metadata: Metadata = {
   title: "FindEvo",
   description:
     "AI-powered Reddit lead generation — analyze your site, surface high-intent threads, and track outreach.",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

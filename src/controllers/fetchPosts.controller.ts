@@ -64,9 +64,6 @@ export async function handle(raw: unknown): Promise<FetchPostsOutput> {
 
   if (!score || posts.length === 0) return { posts };
 
-  const limitStatus = await checkRateLimit(productId, "score_post", 1);
-  if (!limitStatus.allowed) throw new RateLimitError(limitStatus);
-
   // Heuristic pre-filter: Reddit's search endpoint already matched on keywords,
   // but its tokenizer is fuzzy and brings back posts where none of our terms
   // actually appear in the title/body. Skipping LLM calls on those cuts
@@ -87,6 +84,14 @@ export async function handle(raw: unknown): Promise<FetchPostsOutput> {
         const hay = `${p.title} ${p.body}`.toLowerCase();
         return needles.some((n) => hay.includes(n));
       });
+
+  if (relevant.length === 0) return { posts, scored: [] };
+
+  // Check rate limit against the actual number of LLM calls we're about to
+  // make, not against 1. If the daily budget is exhausted, fail loudly so the
+  // UI can surface it instead of silently returning an empty `scored` list.
+  const limitStatus = await checkRateLimit(productId, "score_post", 1);
+  if (!limitStatus.allowed) throw new RateLimitError(limitStatus);
 
   const budget = Math.min(relevant.length, limitStatus.remaining);
   const scored: FetchPostsOutput["scored"] = [];

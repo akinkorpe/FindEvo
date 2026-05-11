@@ -46,6 +46,7 @@ export default function PowerFeedClient() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [scanningSub, setScanningSub] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const {
     items,
     view,
@@ -127,15 +128,24 @@ export default function PowerFeedClient() {
             }),
           });
           if (res.status === 429) {
+            const j = await res.json().catch(() => ({}));
+            setScanError(
+              j.error ??
+                "Daily scoring limit reached — new posts will be scored tomorrow.",
+            );
             scanQueueRef.current = [];
             break;
           }
           if (res.ok) {
             localStorage.setItem(cooldownKey(next.name), String(Date.now()));
+            setScanError(null);
             await load(productId);
+          } else {
+            const j = await res.json().catch(() => ({}));
+            setScanError(j.error ?? `Failed to scan r/${next.name}`);
           }
         } catch {
-          /* skip on network failure */
+          setScanError(`Network error while scanning r/${next.name}`);
         }
       }
     } finally {
@@ -324,6 +334,22 @@ export default function PowerFeedClient() {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {scanError && (
+            <div className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 sm:px-6">
+              <div className="flex items-start gap-2">
+                <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{scanError}</span>
+              </div>
+              <button
+                onClick={() => setScanError(null)}
+                className="shrink-0 rounded text-amber-700 hover:text-amber-900"
+                aria-label="Dismiss"
+              >
+                <IconClose className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
 

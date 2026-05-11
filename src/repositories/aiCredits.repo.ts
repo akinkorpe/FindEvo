@@ -92,7 +92,10 @@ export async function monthlyUsage(
 }
 
 export const RATE_LIMITS = {
-  score_post: { window: "day" as const, max: 100 },
+  // 8 subreddits × ~50 posts × keyword pre-filter ≈ 150–300 scoring calls per
+  // full feed refresh. 500/day gives headroom for a couple of refreshes
+  // without choking the user mid-session.
+  score_post: { window: "day" as const, max: 500 },
   approach_guide: { window: "day" as const, max: 20 },
   analyze_site: { window: "month" as const, max: 5 },
 };

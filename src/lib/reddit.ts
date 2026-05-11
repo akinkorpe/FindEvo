@@ -28,7 +28,7 @@ async function getAppToken(): Promise<string> {
     headers: {
       Authorization: `Basic ${basic}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": process.env.REDDIT_USER_AGENT ?? "redditleads/0.1",
+      "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
     },
     body: "grant_type=client_credentials",
   });
@@ -55,7 +55,7 @@ async function authedFetch(path: string, queryParams: string = ""): Promise<unkn
     const res = await fetch(`${OAUTH_BASE}${path}${queryParams}`, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": process.env.REDDIT_USER_AGENT ?? "redditleads/0.1",
+        "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
       },
     });
     if (res.status === 404) throw new RedditNotFoundError(path);
@@ -67,7 +67,7 @@ async function authedFetch(path: string, queryParams: string = ""): Promise<unkn
   // Parametreleri .json'dan SONRA eklemeliyiz (örn: /r/webdev/new.json?limit=5)
   const res = await fetch(`${PUBLIC_BASE}${path}.json${queryParams}`, {
     headers: {
-      "User-Agent": process.env.REDDIT_USER_AGENT ?? "redditleads/0.1",
+      "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
     },
   });
   if (res.status === 404) throw new RedditNotFoundError(path);

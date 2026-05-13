@@ -1,45 +1,18 @@
+import { ApifyClient } from "apify-client";
 import type { RedditPost, SubredditRule } from "@/types";
 
-const TOKEN_URL = "https://www.reddit.com/api/v1/access_token";
-const OAUTH_BASE = "https://oauth.reddit.com";
 const PUBLIC_BASE = "https://www.reddit.com";
+const APIFY_ACTOR_DEFAULT = "trudax/reddit-scraper-lite";
+const APIFY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour per subreddit
 
-export function isRedditConfigured(): boolean {
-  return !!(process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET);
+function userAgent(): string {
+  return (
+    process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)"
+  );
 }
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
-
-async function getAppToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) {
-    return cachedToken.value;
-  }
-
-  const id = process.env.REDDIT_CLIENT_ID;
-  const secret = process.env.REDDIT_CLIENT_SECRET;
-  if (!id || !secret) {
-    // Key yoksa boş dönüyoruz, istekler public URL'den atılacak
-    return "";
-  }
-
-  const basic = Buffer.from(`${id}:${secret}`).toString("base64");
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
-    },
-    body: "grant_type=client_credentials",
-  });
-  if (!res.ok) throw new Error(`Reddit auth failed: ${res.status}`);
-
-  const json = (await res.json()) as { access_token: string; expires_in: number };
-  cachedToken = {
-    value: json.access_token,
-    expiresAt: Date.now() + json.expires_in * 1000,
-  };
-  return cachedToken.value;
+export function isApifyConfigured(): boolean {
+  return !!process.env.APIFY_TOKEN;
 }
 
 export class RedditNotFoundError extends Error {
@@ -49,26 +22,151 @@ export class RedditNotFoundError extends Error {
   }
 }
 
-async function authedFetch(path: string, queryParams: string = ""): Promise<unknown> {
-  if (isRedditConfigured()) {
-    const token = await getAppToken();
-    const res = await fetch(`${OAUTH_BASE}${path}${queryParams}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
-      },
-    });
-    if (res.status === 404) throw new RedditNotFoundError(path);
-    if (!res.ok) throw new Error(`Reddit ${path} ${res.status}`);
-    return res.json();
+// ────────────────────────────────────────────────────────────────────────
+// Apify path — used in production where Vercel datacenter IPs are blocked
+// by Reddit's anonymous endpoints.
+// ────────────────────────────────────────────────────────────────────────
+
+let apifyClient: ApifyClient | null = null;
+function getApifyClient(): ApifyClient {
+  if (!apifyClient) {
+    apifyClient = new ApifyClient({ token: process.env.APIFY_TOKEN });
+  }
+  return apifyClient;
+}
+
+interface ApifyPostItem {
+  dataType?: string;
+  username?: string;
+  title?: string;
+  body?: string;
+  upVotes?: number;
+  numberOfComments?: number;
+  communityName?: string;
+  url?: string;
+}
+
+// In-memory cache; one process per Vercel lambda so this is per-instance.
+// Good enough to absorb the burst of "feed open → scan 8 subs" repeat calls.
+const apifyCache = new Map<
+  string,
+  { fetchedAt: number; posts: RedditPost[] }
+>();
+
+function buildSubredditUrl(name: string, keywords: string[]): string {
+  const clean = name.replace(/^r\//i, "");
+  if (keywords.length === 0) {
+    return `${PUBLIC_BASE}/r/${encodeURIComponent(clean)}/new/`;
+  }
+  const words = Array.from(
+    new Set(
+      keywords
+        .flatMap((k) => k.toLowerCase().split(/\s+/))
+        .filter((w) => w.length >= 4),
+    ),
+  ).slice(0, 10);
+  const q = words.length > 0 ? words.join(" OR ") : keywords[0];
+  return `${PUBLIC_BASE}/r/${encodeURIComponent(clean)}/search/?q=${encodeURIComponent(
+    q,
+  )}&restrict_sr=on&sort=new`;
+}
+
+function parsePostIdFromUrl(url: string): string | null {
+  // /r/<sub>/comments/<base36-id>/<slug>/
+  const m = url.match(/\/comments\/([a-z0-9]+)\//i);
+  return m ? `t3_${m[1]}` : null;
+}
+
+function mapApifyPost(item: ApifyPostItem): RedditPost | null {
+  if (!item.url || !item.title) return null;
+  const id = parsePostIdFromUrl(item.url);
+  if (!id) return null;
+  // Apify returns communityName like "r/indiehackers"; strip the prefix
+  // including its trailing slash so we end up with just "indiehackers".
+  const subreddit = (item.communityName ?? "")
+    .replace(/^\/?r\//i, "")
+    .trim();
+  return {
+    id,
+    subreddit,
+    title: item.title,
+    body: item.body ?? "",
+    author: item.username ?? "[deleted]",
+    url: item.url,
+    // Apify Reddit Scraper Lite doesn't return post timestamps. We're hitting
+    // /new/ so posts are fresh — approximate with "now". Time-range filters
+    // in the feed UI become coarse but won't hide real leads.
+    createdAt: new Date().toISOString(),
+    score: item.upVotes ?? 0,
+  };
+}
+
+async function fetchPostsViaApify(
+  subreddit: string,
+  keywords: string[],
+  limit: number,
+): Promise<RedditPost[]> {
+  const clean = subreddit.replace(/^r\//i, "");
+  const cacheKey = `${clean.toLowerCase()}|${keywords.join(",").toLowerCase()}|${limit}`;
+  const cached = apifyCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < APIFY_CACHE_TTL_MS) {
+    return cached.posts;
   }
 
-  // Fallback: public JSON (rate-limited, anonymous). Lets dev work without creds.
-  // Parametreleri .json'dan SONRA eklemeliyiz (örn: /r/webdev/new.json?limit=5)
+  const actorId = process.env.APIFY_ACTOR_ID ?? APIFY_ACTOR_DEFAULT;
+  const startUrl = buildSubredditUrl(clean, keywords);
+  const input = {
+    startUrls: [{ url: startUrl }],
+    maxItems: limit,
+    skipComments: true,
+    skipUserPosts: true,
+    skipCommunity: true,
+    proxy: { useApifyProxy: true },
+  };
+
+  const run = await getApifyClient().actor(actorId).call(input, {
+    // Don't let a hung actor block the user past Next's maxDuration.
+    timeout: 90,
+    memory: 1024,
+  });
+  const { items } = await getApifyClient()
+    .dataset(run.defaultDatasetId)
+    .listItems();
+
+  const posts = (items as unknown as ApifyPostItem[])
+    .filter((it) => it.dataType === "post")
+    .map(mapApifyPost)
+    .filter((p): p is RedditPost => p !== null);
+
+  apifyCache.set(cacheKey, { fetchedAt: Date.now(), posts });
+  return posts;
+}
+
+async function subredditExistsViaApify(name: string): Promise<boolean> {
+  // Apify doesn't expose a cheap /about probe. Treat it as "exists" and let
+  // fetchPostsViaApify return empty for invalid subs — the controller already
+  // handles empty results gracefully.
+  return name.length > 0;
+}
+
+async function fetchRulesViaApify(_subreddit: string): Promise<SubredditRule[]> {
+  // Rules aren't surfaced by the Lite actor. Returning [] keeps the rule
+  // intelligence layer in "unclassified" state (yellow badge), which is the
+  // intended fallback when rules can't be fetched.
+  return [];
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Public anonymous JSON path — kept as a local-dev fallback when APIFY_TOKEN
+// isn't set. Vercel will always use the Apify path in production.
+// ────────────────────────────────────────────────────────────────────────
+
+async function publicFetch(
+  path: string,
+  queryParams: string = "",
+): Promise<unknown> {
   const res = await fetch(`${PUBLIC_BASE}${path}.json${queryParams}`, {
-    headers: {
-      "User-Agent": process.env.REDDIT_USER_AGENT ?? "web:findevo:1.0.0 (by /u/findevo_app)",
-    },
+    headers: { "User-Agent": userAgent() },
   });
   if (res.status === 404) throw new RedditNotFoundError(path);
   if (!res.ok) throw new Error(`Reddit ${path} ${res.status}`);
@@ -78,7 +176,6 @@ async function authedFetch(path: string, queryParams: string = ""): Promise<unkn
 interface RedditListing {
   data: { children: Array<{ data: RedditPostRaw }> };
 }
-
 interface RedditPostRaw {
   id: string;
   name: string;
@@ -88,27 +185,23 @@ interface RedditPostRaw {
   author: string;
   permalink: string;
   score: number;
-  author_fullname?: string;
   created_utc: number;
 }
-
 interface RedditRulesResponse {
   rules: Array<{ short_name: string; description: string }>;
 }
 
-export async function fetchPosts(
+async function fetchPostsViaPublic(
   subreddit: string,
-  keywords: string[] = [],
-  limit = 25,
+  keywords: string[],
+  limit: number,
 ): Promise<RedditPost[]> {
   const clean = subreddit.replace(/^r\//i, "");
   let path = `/r/${encodeURIComponent(clean)}/new`;
   let queryParams = `?limit=${limit}`;
 
-  // If keywords exist, use the search endpoint for much better recall
   if (keywords.length > 0) {
     path = `/r/${encodeURIComponent(clean)}/search`;
-    // Use individual significant words (not exact phrases) to maximize recall.
     const words = Array.from(
       new Set(
         keywords
@@ -120,10 +213,9 @@ export async function fetchPosts(
     queryParams = `?q=${encodeURIComponent(q)}&restrict_sr=on&sort=new&limit=${limit}`;
   }
 
-  const data = (await authedFetch(path, queryParams)) as RedditListing;
-
+  const data = (await publicFetch(path, queryParams)) as RedditListing;
   const rows = data?.data?.children ?? [];
-  const posts: RedditPost[] = rows.map((c) => ({
+  return rows.map((c) => ({
     id: c.data.name,
     subreddit: c.data.subreddit,
     title: c.data.title,
@@ -133,11 +225,28 @@ export async function fetchPosts(
     createdAt: new Date(c.data.created_utc * 1000).toISOString(),
     score: c.data.score,
   }));
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Public API — same signatures as before; routes to Apify when configured.
+// ────────────────────────────────────────────────────────────────────────
+
+export async function fetchPosts(
+  subreddit: string,
+  keywords: string[] = [],
+  limit = 25,
+): Promise<RedditPost[]> {
+  const posts = isApifyConfigured()
+    ? await fetchPostsViaApify(subreddit, keywords, limit)
+    : await fetchPostsViaPublic(subreddit, keywords, limit);
 
   if (keywords.length === 0) return posts;
-  
   const needles = Array.from(
-    new Set(keywords.flatMap((k) => k.toLowerCase().split(/\s+/)).filter((w) => w.length >= 4)),
+    new Set(
+      keywords
+        .flatMap((k) => k.toLowerCase().split(/\s+/))
+        .filter((w) => w.length >= 4),
+    ),
   );
   return posts.filter((p) => {
     const hay = `${p.title} ${p.body}`.toLowerCase();
@@ -145,19 +254,13 @@ export async function fetchPosts(
   });
 }
 
-/**
- * Probe whether a subreddit exists and is publicly accessible.
- * Returns true for 200, false for 404/403/private. Throws only on transport
- * errors (so callers can distinguish "doesn't exist" from "Reddit is down").
- */
 export async function subredditExists(name: string): Promise<boolean> {
+  if (isApifyConfigured()) return subredditExistsViaApify(name);
   const clean = name.replace(/^r\//i, "");
   try {
-    const data = (await authedFetch(
-      `/r/${encodeURIComponent(clean)}/about`,
-    )) as { kind?: string; data?: { subreddit_type?: string } };
-    // Reddit returns kind:"t5" for real subs. Private/banned subs may return
-    // 200 with a different shape — treat anything other than t5 as missing.
+    const data = (await publicFetch(`/r/${encodeURIComponent(clean)}/about`)) as {
+      kind?: string;
+    };
     return data?.kind === "t5";
   } catch {
     return false;
@@ -165,11 +268,11 @@ export async function subredditExists(name: string): Promise<boolean> {
 }
 
 export async function fetchRules(subreddit: string): Promise<SubredditRule[]> {
+  if (isApifyConfigured()) return fetchRulesViaApify(subreddit);
   const clean = subreddit.replace(/^r\//i, "");
-  const data = (await authedFetch(
+  const data = (await publicFetch(
     `/r/${encodeURIComponent(clean)}/about/rules`,
   )) as RedditRulesResponse;
-
   return (data.rules ?? []).map((r) => ({
     subreddit: clean,
     title: r.short_name,

@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.45.4",
+    "apify-client": "^2.23.3",
     "next": "^15.0.3",
     "openai": "^4.71.0",
     "react": "^19.0.0",

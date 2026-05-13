@@ -94,8 +94,6 @@ export default function PowerFeedClient() {
   ) {
     const cooldownKey = (sub: string) =>
       `redditleads:lastFetch:${productId}:${sub.toLowerCase()}`;
-    // Enqueue new requests; merge with anything already running to avoid drops
-    // when a user adds a subreddit while initial scan is still in flight.
     for (const t of subs) {
       const already = scanQueueRef.current.some(
         (q) => q.name.toLowerCase() === t.name.toLowerCase(),
@@ -109,45 +107,58 @@ export default function PowerFeedClient() {
     }
     if (scanningRef.current) return;
     scanningRef.current = true;
-    try {
-      while (scanQueueRef.current.length > 0) {
-        const next = scanQueueRef.current.shift()!;
-        const last = Number(localStorage.getItem(cooldownKey(next.name)) ?? 0);
-        const dueByCooldown = Date.now() - last > AUTO_FETCH_COOLDOWN_MS;
-        if (!next.bypassCooldown && !dueByCooldown) continue;
-        setScanningSub(next.name);
-        try {
-          const res = await fetch("/api/fetch-posts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              productId,
-              subreddit: next.name,
-              score: true,
-              limit: 50,
-            }),
-          });
-          if (res.status === 429) {
-            const j = await res.json().catch(() => ({}));
-            setScanError(
-              j.error ??
-                "Daily scoring limit reached — new posts will be scored tomorrow.",
-            );
-            scanQueueRef.current = [];
-            break;
-          }
-          if (res.ok) {
-            localStorage.setItem(cooldownKey(next.name), String(Date.now()));
-            setScanError(null);
-            await load(productId);
-          } else {
-            const j = await res.json().catch(() => ({}));
-            setScanError(j.error ?? `Failed to scan r/${next.name}`);
-          }
-        } catch {
-          setScanError(`Network error while scanning r/${next.name}`);
+
+    // Each /api/fetch-posts call kicks off an Apify actor (~60s/sub). Running
+    // them serially would blow past Vercel's maxDuration and frustrate users
+    // staring at a half-loaded feed. Run a small concurrent pool so they
+    // execute in parallel lambda invocations.
+    const CONCURRENCY = 4;
+    let rateLimited = false;
+
+    async function scanOne(item: { name: string; bypassCooldown: boolean }) {
+      const last = Number(localStorage.getItem(cooldownKey(item.name)) ?? 0);
+      const dueByCooldown = Date.now() - last > AUTO_FETCH_COOLDOWN_MS;
+      if (!item.bypassCooldown && !dueByCooldown) return;
+      setScanningSub(item.name);
+      try {
+        const res = await fetch("/api/fetch-posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId,
+            subreddit: item.name,
+            score: true,
+            limit: 50,
+          }),
+        });
+        if (res.status === 429) {
+          const j = await res.json().catch(() => ({}));
+          setScanError(
+            j.error ??
+              "Daily scoring limit reached — new posts will be scored tomorrow.",
+          );
+          rateLimited = true;
+          return;
         }
+        if (res.ok) {
+          localStorage.setItem(cooldownKey(item.name), String(Date.now()));
+          setScanError(null);
+          await load(productId);
+        } else {
+          const j = await res.json().catch(() => ({}));
+          setScanError(j.error ?? `Failed to scan r/${item.name}`);
+        }
+      } catch {
+        setScanError(`Network error while scanning r/${item.name}`);
       }
+    }
+
+    try {
+      while (scanQueueRef.current.length > 0 && !rateLimited) {
+        const batch = scanQueueRef.current.splice(0, CONCURRENCY);
+        await Promise.all(batch.map(scanOne));
+      }
+      if (rateLimited) scanQueueRef.current = [];
     } finally {
       setScanningSub(null);
       scanningRef.current = false;

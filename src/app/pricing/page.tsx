@@ -27,7 +27,6 @@ const FEATURE_ROWS: FeatureRow[] = [
   { label: "Post intent scores / day", value: (p) => `${p.limits.post_score_daily}` },
   { label: "Approach guides / day", value: (p) => `${p.limits.approach_guide_daily}` },
   { label: "Site analyses / month", value: (p) => `${p.limits.site_analysis_monthly}` },
-  { label: "Subreddit rule history", value: (p) => p.limits.rule_history },
   { label: "Email support", value: () => true },
 ];
 
@@ -121,7 +120,6 @@ function PlanCard({ plan, highlighted }: { plan: Plan; highlighted: boolean }) {
     `${plan.limits.approach_guide_daily} approach guides / day`,
     `${plan.limits.site_analysis_monthly} site analyses / month`,
   ];
-  if (plan.limits.rule_history) bullets.push("Subreddit rule history");
 
   return (
     <div
@@ -231,15 +229,11 @@ function Faq() {
   const items: Array<{ q: string; a: string }> = [
     {
       q: "What happens if I hit my daily limit?",
-      a: "The product keeps working — scoring just pauses for that kind until the next day. We'll show an in-app banner with the option to upgrade to the next tier, which raises the cap immediately.",
+      a: "The product keeps working — scoring just pauses for that kind until the next day. We show an in-app banner with the option to upgrade to the next tier, which raises the cap immediately.",
     },
     {
-      q: "Can I change plans later?",
-      a: "Yes. Upgrades take effect right away; downgrades take effect at the end of your current billing period so you don't lose paid headroom mid-cycle.",
-    },
-    {
-      q: "Do you offer a free trial?",
-      a: "Every account starts on the Starter tier with no card required. Beta users get a discount code for the first month — check your onboarding email.",
+      q: "When does paid billing go live?",
+      a: "We're in beta. Every account is on the Starter tier today, no card required. Paid plans launch with our public release — when they do, upgrades will take effect immediately and downgrades at the end of the current billing period.",
     },
     {
       q: "Is there a free plan?",

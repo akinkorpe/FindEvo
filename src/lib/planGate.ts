@@ -1,5 +1,6 @@
 // Capacity-style plan gating that doesn't fit the daily/monthly AI-credit
-// pattern (subreddit count, rule history, etc).
+// pattern (subreddit count today; lead-related capacity gates land here as
+// they're added).
 //
 // Time-windowed limits live in aiCredits.repo (checkRateLimit) because they
 // reuse the existing usage table. This file is for "is this user allowed to

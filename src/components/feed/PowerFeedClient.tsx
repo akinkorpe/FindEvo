@@ -256,7 +256,16 @@ export default function PowerFeedClient() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:h-screen">
+    // The Feed page owns the viewport: a fixed-height shell with its own
+    // internal scroll zones (filter sidebar, feed list, strategy panel).
+    // Without this the AppShell's `min-h-screen` lets the page stretch with
+    // content, pushing the StrategyPanel action bar below the visible window
+    // — and not just on mobile, the same thing happens at any breakpoint
+    // where the strategy panel renders inline (xl+).
+    //
+    // `100dvh` tracks the real visible area as iOS browser chrome shows/hides;
+    // h-screen is the static fallback for browsers that don't support dvh.
+    <div className="flex h-screen h-[100dvh] min-h-0 flex-1 flex-col">
       <Header title="Power Feed" searchPlaceholder="Search posts, keywords..." />
       <main className="flex min-h-0 flex-1 overflow-hidden">
         {/* Desktop sidebar */}
@@ -992,14 +1001,12 @@ function StrategyPanel({
 
   return (
     <aside
-      // Mobile: fullscreen overlay anchored to the dynamic viewport so the
-      // sticky bottom action bar stays in view as iOS's URL bar shows/hides.
-      // `100dvh` is the height that already accounts for retracting browser
-      // chrome — `inset-0` against `100vh` would put the action bar below
-      // the visible area on iOS, which was the bug the user reported.
-      // Desktop: ignore all of that and become a 420px right rail.
-      style={{ height: "100dvh" }}
-      className="fixed inset-x-0 top-0 z-40 flex min-h-0 flex-col overflow-hidden overscroll-contain border-l border-ink-100 bg-white xl:static xl:z-auto xl:!h-full xl:w-[420px] xl:shrink-0"
+      // < xl: fullscreen overlay. Height is the dynamic viewport so iOS's
+      // retracting URL bar doesn't push our sticky action bar out of view.
+      // xl+: a 420px right rail inside the Feed's fixed-height shell — we
+      // strip the inline height (replaced with h-full via a class) so the
+      // panel fills its flex parent instead of being viewport-tall.
+      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-contain border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
     >
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">

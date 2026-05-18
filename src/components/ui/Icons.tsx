@@ -104,6 +104,13 @@ export const IconArrowRight = base(
   </>,
 );
 
+export const IconArrowLeft = base(
+  <>
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
+  </>,
+);
+
 export const IconClose = base(
   <>
     <path d="M18 6 6 18" />

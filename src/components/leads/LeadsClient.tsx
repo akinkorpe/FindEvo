@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import {
   IconAlert,
+  IconArrowLeft,
   IconArrowRight,
   IconBoard,
   IconChat,
@@ -343,22 +344,40 @@ function LeadsBoard({
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-ink-500">{lead.source}</div>
-                  <div className="mt-2 flex items-center justify-between">
+                  <div className="mt-2 flex items-center justify-between gap-2">
                     <Badge tone={/high/i.test(lead.intentLabel) ? "brand" : "neutral"}>
                       {lead.intentLabel}
                     </Badge>
-                    {col !== "converted" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const next = nextStatus(col);
-                          if (next) onMove(lead.id, next);
-                        }}
-                        className="text-ink-400 hover:text-brand-600"
-                      >
-                        <IconArrowRight className="h-4 w-4" />
-                      </button>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1">
+                      {prevStatus(col) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const prev = prevStatus(col);
+                            if (prev) onMove(lead.id, prev);
+                          }}
+                          aria-label={`Move back to ${STATUS_META[prevStatus(col)!].label}`}
+                          title={`Move back to ${STATUS_META[prevStatus(col)!].label}`}
+                          className="flex h-6 w-6 items-center justify-center rounded text-ink-400 hover:bg-ink-100 hover:text-ink-700"
+                        >
+                          <IconArrowLeft className="h-4 w-4" />
+                        </button>
+                      )}
+                      {nextStatus(col) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const next = nextStatus(col);
+                            if (next) onMove(lead.id, next);
+                          }}
+                          aria-label={`Move forward to ${STATUS_META[nextStatus(col)!].label}`}
+                          title={`Move forward to ${STATUS_META[nextStatus(col)!].label}`}
+                          className="flex h-6 w-6 items-center justify-center rounded text-ink-400 hover:bg-ink-100 hover:text-brand-600"
+                        >
+                          <IconArrowRight className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -603,6 +622,19 @@ function nextStatus(s: LeadStatus): LeadStatus | null {
       return "active_pipeline";
     case "active_pipeline":
       return "converted";
+    default:
+      return null;
+  }
+}
+
+function prevStatus(s: LeadStatus): LeadStatus | null {
+  switch (s) {
+    case "engaged":
+      return "new";
+    case "active_pipeline":
+      return "engaged";
+    case "converted":
+      return "active_pipeline";
     default:
       return null;
   }

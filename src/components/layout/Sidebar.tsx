@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { signOut } from "@/lib/auth";
 import { useAppShell } from "@/components/layout/AppShell";
 import {
   IconGrid,
@@ -14,6 +16,7 @@ import {
   IconSparkles,
   IconSettings,
   IconClose,
+  IconArrowRight,
 } from "@/components/ui/Icons";
 import type { ReactNode } from "react";
 
@@ -36,8 +39,16 @@ const NAV: NavItem[] = [
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname() ?? "";
   const { user } = useAuthUser();
+  const [signingOut, setSigningOut] = useState(false);
   const displayName = user?.fullName ?? user?.email ?? "Account";
   const displayEmail = user?.email ?? "";
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    await signOut();
+    window.location.assign("/landing");
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -104,13 +115,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         })}
       </nav>
 
-      <Link
-        href="/settings?tab=account"
-        className="m-4 block rounded-xl border border-ink-200/60 bg-surface-muted p-3 transition hover:bg-ink-50"
-      >
-        <div className="flex items-center gap-3">
+      <div className="m-4 rounded-xl border border-ink-200/60 bg-surface-muted p-3">
+        <Link
+          href="/settings?tab=account"
+          className="-m-1 flex items-center gap-3 rounded-lg p-1 transition hover:bg-ink-50"
+        >
           <Avatar name={displayName} src={user?.avatarUrl} size="sm" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-ink-900">
               {displayName}
             </div>
@@ -120,8 +131,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               </div>
             )}
           </div>
-        </div>
-      </Link>
+        </Link>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-60"
+        >
+          <IconArrowRight className="h-3 w-3" />
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
     </div>
   );
 }

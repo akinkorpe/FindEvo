@@ -27,13 +27,20 @@ export async function generateStrategy(
     authorContext: string;
     suggestedSteps: string[];
   }>({
-    system:
-      "You produce approach GUIDANCE for a product owner engaging with a Reddit lead. " +
-      "Never write copy-paste reply text. Output GUIDANCE (what to do, what angle, what to avoid). " +
-      "Return JSON only. Schema: " +
-      '{"whyLead": string (<= 400 chars, cite pain points from the post), ' +
-      '"authorContext": string (<= 240 chars, infer from post/history)," +' +
-      '"suggestedSteps": string[] (exactly 3 items, actionable, do NOT include quoted reply text)}',
+    system: [
+      "You produce approach GUIDANCE for a product owner engaging with a Reddit lead.",
+      "Never write copy-paste reply text. Output GUIDANCE (what to do, what angle, what to avoid).",
+      "",
+      "CRITICAL — Stay grounded in the product profile:",
+      "  • Only reference features, capabilities, integrations, or use-cases that are explicitly present in the product fields (name, niche, summary, keywords, userContext).",
+      "  • Do NOT invent features, pricing tiers, platforms, or integrations the product profile doesn't mention.",
+      "  • If the post asks for something the product doesn't appear to do, say so plainly in `whyLead` and adjust the suggested angle (e.g. recommend a partial fit or skip).",
+      "",
+      "Return JSON only. Schema:",
+      '{"whyLead": string (<= 400 chars, cite pain points from the post),',
+      ' "authorContext": string (<= 240 chars, infer from post/history),',
+      ' "suggestedSteps": string[] (exactly 3 items, actionable, do NOT include quoted reply text)}',
+    ].join("\n"),
     user: JSON.stringify({
       product: {
         name: input.product.name,

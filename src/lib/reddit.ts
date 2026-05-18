@@ -267,6 +267,54 @@ export async function subredditExists(name: string): Promise<boolean> {
   }
 }
 
+export interface SubredditSuggestion {
+  name: string;
+  subscribers: number | null;
+  description: string | null;
+}
+
+// Reddit's autocomplete endpoint. Public, no auth needed. May 403 from Vercel
+// datacenter IPs — caller should treat empty/error as "no suggestions" and
+// fall back to a local seed list rather than failing the request.
+export async function searchSubreddits(
+  query: string,
+  limit = 8,
+): Promise<SubredditSuggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  try {
+    const res = await fetch(
+      `${PUBLIC_BASE}/api/subreddit_autocomplete_v2.json?query=${encodeURIComponent(
+        q,
+      )}&limit=${limit}&include_over_18=false&include_profiles=false`,
+      { headers: { "User-Agent": userAgent() }, next: { revalidate: 300 } },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      data?: {
+        children?: Array<{
+          data?: {
+            display_name?: string;
+            subscribers?: number;
+            public_description?: string;
+          };
+        }>;
+      };
+    };
+    const rows = data?.data?.children ?? [];
+    return rows
+      .map((c) => c.data)
+      .filter((d): d is NonNullable<typeof d> => !!d?.display_name)
+      .map((d) => ({
+        name: d.display_name!,
+        subscribers: d.subscribers ?? null,
+        description: d.public_description?.trim() || null,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchRules(subreddit: string): Promise<SubredditRule[]> {
   if (isApifyConfigured()) return fetchRulesViaApify(subreddit);
   const clean = subreddit.replace(/^r\//i, "");

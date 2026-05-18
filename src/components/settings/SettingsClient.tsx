@@ -550,6 +550,27 @@ function AccountTab({ product }: { product: Product }) {
           </div>
           <div className="mt-1 text-xs text-ink-500">{product.websiteUrl}</div>
         </div>
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-ink-100 bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-ink-900">
+              Re-run onboarding
+            </div>
+            <p className="mt-0.5 text-xs text-ink-500">
+              Analyze a different site or refresh keywords and subreddit
+              suggestions. Your current product stays — delete it from the
+              Danger zone first if you want to replace it.
+            </p>
+          </div>
+          <Link href="/onboarding" className="shrink-0">
+            <Button
+              variant="ghost"
+              className="border border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
+              rightIcon={<IconArrowRight className="h-4 w-4" />}
+            >
+              Re-run onboarding
+            </Button>
+          </Link>
+        </div>
       </Card>
 
       <Card className="border-red-200 bg-red-50/40 p-6">

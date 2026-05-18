@@ -19,6 +19,7 @@ import {
   IconShield,
   IconAlert,
   IconEye,
+  IconLink,
   IconPlus,
 } from "@/components/ui/Icons";
 import { useFeedStore } from "@/store/useFeedStore";
@@ -435,6 +436,12 @@ type FiltersProps = {
   onTargetsChange: (newSubreddit?: string) => void;
 };
 
+interface SubSuggestion {
+  name: string;
+  subscribers: number | null;
+  description: string | null;
+}
+
 function FiltersBody({
   items,
   targets,
@@ -450,12 +457,48 @@ function FiltersBody({
   const [addError, setAddError] = useState<string | null>(null);
   const [addedHint, setAddedHint] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<SubSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   useEffect(() => {
     if (!addedHint) return;
     const id = window.setTimeout(() => setAddedHint(null), 6000);
     return () => window.clearTimeout(id);
   }, [addedHint]);
+
+  // Debounced autocomplete: fire 200ms after the user stops typing, ignore
+  // stale responses if the input changed before the request returned.
+  useEffect(() => {
+    const raw = addInput.trim().replace(/^\/?r\//i, "");
+    if (raw.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/subreddits/search?q=${encodeURIComponent(raw)}&limit=8`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { suggestions?: SubSuggestion[] };
+        if (cancelled) return;
+        const tracked = new Set(targets.map((t) => t.name.toLowerCase()));
+        const filtered = (json.suggestions ?? []).filter(
+          (s) => !tracked.has(s.name.toLowerCase()),
+        );
+        setSuggestions(filtered);
+        setHighlight(0);
+      } catch {
+        // Network errors fail silently — the user can still type the name manually.
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [addInput, targets]);
 
   const counts = {
     all: items.length,
@@ -478,9 +521,10 @@ function FiltersBody({
     return clean;
   }
 
-  async function handleAdd() {
+  async function handleAdd(override?: string) {
     if (!productId || adding) return;
-    const clean = normalizeSubredditName(addInput);
+    const source = override ?? addInput;
+    const clean = normalizeSubredditName(source);
     if (!clean) {
       setAddError("Enter a valid subreddit name (e.g. r/SaaS)");
       return;
@@ -492,6 +536,7 @@ function FiltersBody({
     setAdding(true);
     setAddError(null);
     setAddedHint(null);
+    setShowSuggestions(false);
     try {
       const res = await fetch("/api/subreddits", {
         method: "POST",
@@ -501,6 +546,7 @@ function FiltersBody({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to add subreddit");
       setAddInput("");
+      setSuggestions([]);
       setAddedHint(clean);
       onTargetsChange(clean);
     } catch (err) {
@@ -604,7 +650,7 @@ function FiltersBody({
         </div>
 
         {/* Add subreddit */}
-        <div className="mt-3">
+        <div className="relative mt-3">
           <div className="flex gap-1.5">
             <input
               type="text"
@@ -613,16 +659,42 @@ function FiltersBody({
                 setAddInput(e.target.value);
                 setAddError(null);
                 setAddedHint(null);
+                setShowSuggestions(true);
               }}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => {
+                // Delay so mousedown on a suggestion still fires before close.
+                window.setTimeout(() => setShowSuggestions(false), 150);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (showSuggestions && suggestions.length > 0) {
+                    e.preventDefault();
+                    handleAdd(suggestions[highlight]?.name ?? addInput);
+                  } else {
+                    handleAdd();
+                  }
+                } else if (e.key === "ArrowDown" && suggestions.length > 0) {
+                  e.preventDefault();
+                  setShowSuggestions(true);
+                  setHighlight((h) => Math.min(h + 1, suggestions.length - 1));
+                } else if (e.key === "ArrowUp" && suggestions.length > 0) {
+                  e.preventDefault();
+                  setHighlight((h) => Math.max(h - 1, 0));
+                } else if (e.key === "Escape") {
+                  setShowSuggestions(false);
+                }
+              }}
               placeholder="r/subredditname"
               disabled={adding}
               aria-label="Add subreddit"
               aria-invalid={!!addError}
+              aria-autocomplete="list"
+              aria-expanded={showSuggestions && suggestions.length > 0}
               className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-400 focus:outline-none disabled:opacity-60"
             />
             <button
-              onClick={handleAdd}
+              onClick={() => handleAdd()}
               disabled={adding || !addInput.trim()}
               aria-label="Add subreddit"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition"
@@ -634,6 +706,49 @@ function FiltersBody({
               )}
             </button>
           </div>
+
+          {showSuggestions && suggestions.length > 0 && (
+            <ul
+              role="listbox"
+              className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-ink-200 bg-white shadow-pop"
+            >
+              {suggestions.map((s, idx) => (
+                <li key={s.name} role="option" aria-selected={idx === highlight}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      // Prevent input blur from firing before our click handler.
+                      e.preventDefault();
+                      handleAdd(s.name);
+                    }}
+                    onMouseEnter={() => setHighlight(idx)}
+                    className={`flex w-full items-start gap-2 px-2.5 py-1.5 text-left text-xs transition ${
+                      idx === highlight ? "bg-brand-50" : "hover:bg-ink-50"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-ink-900">
+                          r/{s.name}
+                        </span>
+                        {s.subscribers !== null && (
+                          <span className="text-[10px] text-ink-400">
+                            {formatSubs(s.subscribers)}
+                          </span>
+                        )}
+                      </div>
+                      {s.description && (
+                        <div className="truncate text-[11px] text-ink-500">
+                          {s.description}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {addError && (
             <p className="mt-1.5 text-[11px] text-red-600">{addError}</p>
           )}
@@ -708,15 +823,23 @@ function FeedCard({
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  const risk = riskInfo(item.riskLevel);
+  const intentBadge = intentBadgeInfo(item.intentScore, item.riskLevel);
   const rule = ruleBadgeInfo(item.ruleBadge ?? null);
   const age = timeAgo(item.post.createdAt);
   const body = item.post.body?.trim() || "";
 
   return (
-    <button
+    <div
       onClick={onSelect}
-      className={`w-full rounded-2xl border bg-white p-5 text-left transition ${
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`w-full cursor-pointer rounded-2xl border bg-white p-5 text-left transition ${
         isSelected
           ? "border-brand-400 ring-2 ring-brand-100"
           : "border-ink-100 hover:border-ink-200 hover:shadow-card"
@@ -735,8 +858,8 @@ function FeedCard({
           <span className="whitespace-nowrap">{age}</span>
           <span className="truncate">u/{item.post.author}</span>
         </div>
-        <Badge tone={risk.tone} icon={risk.icon}>
-          <span className="whitespace-nowrap">{risk.label}</span>
+        <Badge tone={intentBadge.tone} icon={intentBadge.icon}>
+          <span className="whitespace-nowrap">{intentBadge.label}</span>
         </Badge>
       </div>
 
@@ -768,12 +891,23 @@ function FeedCard({
             className="mt-1.5"
           />
         </div>
+        <a
+          href={item.post.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-medium text-ink-700 transition hover:bg-ink-50"
+          title="Open original post on Reddit"
+        >
+          <IconLink className="h-3 w-3" />
+          Reddit
+        </a>
         <span className="flex items-center gap-1 text-xs font-medium text-brand-600">
           View
           <IconArrowRight className="h-3 w-3" />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -1146,28 +1280,62 @@ function ruleBadgeInfo(
   return null;
 }
 
-function riskInfo(risk: RiskLevel): {
+function intentBadgeInfo(
+  intentScore: number,
+  risk: RiskLevel,
+): {
   label: string;
-  tone: "success" | "warning" | "danger";
+  tone: "success" | "warning" | "danger" | "brand" | "neutral";
   icon: React.ReactNode;
 } {
-  if (risk === "safe")
+  // Risk flags trump intent — a high-intent post in a self-promo-banning sub
+  // is still risky to engage with, and the user needs to see that first.
+  if (risk === "high_risk") {
     return {
-      label: "Safe Lead",
-      tone: "success",
-      icon: <IconShield className="h-3 w-3" />,
+      label: "High Risk",
+      tone: "danger",
+      icon: <IconAlert className="h-3 w-3" />,
     };
-  if (risk === "review")
+  }
+  if (risk === "review") {
     return {
       label: "Review Needed",
       tone: "warning",
       icon: <IconAlert className="h-3 w-3" />,
     };
+  }
+  if (intentScore >= 85) {
+    return {
+      label: "Hot Lead",
+      tone: "brand",
+      icon: <IconFlame className="h-3 w-3" />,
+    };
+  }
+  if (intentScore >= 70) {
+    return {
+      label: "Warm Lead",
+      tone: "success",
+      icon: <IconFlame className="h-3 w-3" />,
+    };
+  }
+  if (intentScore >= 50) {
+    return {
+      label: "Lukewarm",
+      tone: "success",
+      icon: <IconShield className="h-3 w-3" />,
+    };
+  }
   return {
-    label: "High Risk",
-    tone: "danger",
-    icon: <IconAlert className="h-3 w-3" />,
+    label: "Cool Lead",
+    tone: "neutral",
+    icon: <IconShield className="h-3 w-3" />,
   };
+}
+
+function formatSubs(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
+  return `${n}`;
 }
 
 function timeAgo(iso: string): string {

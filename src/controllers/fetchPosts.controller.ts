@@ -39,7 +39,10 @@ export function validateInput(raw: unknown): FetchPostsInput {
   };
 }
 
-export async function handle(raw: unknown): Promise<FetchPostsOutput> {
+export async function handle(
+  raw: unknown,
+  userId?: string,
+): Promise<FetchPostsOutput> {
   const { productId, subreddit, keywords, score, limit } = validateInput(raw);
 
   const product = await getProduct(productId);
@@ -90,7 +93,9 @@ export async function handle(raw: unknown): Promise<FetchPostsOutput> {
   // Check rate limit against the actual number of LLM calls we're about to
   // make, not against 1. If the daily budget is exhausted, fail loudly so the
   // UI can surface it instead of silently returning an empty `scored` list.
-  const limitStatus = await checkRateLimit(productId, "score_post", 1);
+  const limitStatus = await checkRateLimit(productId, "score_post", {
+    userId,
+  });
   if (!limitStatus.allowed) throw new RateLimitError(limitStatus);
 
   const budget = Math.min(relevant.length, limitStatus.remaining);

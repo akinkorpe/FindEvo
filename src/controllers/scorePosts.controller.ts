@@ -26,12 +26,15 @@ export function validateInput(raw: unknown): ScorePostsInput {
   };
 }
 
-export async function handle(raw: unknown): Promise<ScorePostsOutput> {
+export async function handle(
+  raw: unknown,
+  userId?: string,
+): Promise<ScorePostsOutput> {
   const { productId, postIds } = validateInput(raw);
   const product = await getProduct(productId);
   if (!product) throw new Error(`Product ${productId} not found`);
 
-  const limit = await checkRateLimit(productId, "score_post", 1);
+  const limit = await checkRateLimit(productId, "score_post", { userId });
   if (!limit.allowed) throw new RateLimitError(limit);
 
   const posts = await getPostsByIds(postIds);

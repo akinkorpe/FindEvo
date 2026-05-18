@@ -166,7 +166,7 @@ export async function analyzeAndPersist(
     const limit = await credits.checkRateLimit(
       existing.id as string,
       "analyze_site",
-      1,
+      { userId: ownerId },
     );
     if (!limit.allowed) throw new RateLimitError(limit);
   }

@@ -23,6 +23,7 @@ import {
   IconPlus,
 } from "@/components/ui/Icons";
 import { useFeedStore } from "@/store/useFeedStore";
+import { formatPlanLimit } from "@/lib/planLimitMessage";
 import type {
   ApproachGuide,
   RiskLevel,
@@ -134,10 +135,7 @@ export default function PowerFeedClient() {
         });
         if (res.status === 429) {
           const j = await res.json().catch(() => ({}));
-          setScanError(
-            j.error ??
-              "Daily scoring limit reached — new posts will be scored tomorrow.",
-          );
+          setScanError(formatPlanLimit(j));
           rateLimited = true;
           return;
         }
@@ -544,6 +542,11 @@ function FiltersBody({
         body: JSON.stringify({ productId, name: clean }),
       });
       const json = await res.json();
+      if (res.status === 429) {
+        // Capacity limit — plan caps tracked subreddits. formatPlanLimit
+        // produces a "you're on Starter, upgrade to Growth for 10" message.
+        throw new Error(formatPlanLimit(json));
+      }
       if (!res.ok) throw new Error(json.error ?? "Failed to add subreddit");
       setAddInput("");
       setSuggestions([]);
@@ -940,9 +943,7 @@ function StrategyPanel({
       .then(async (r) => {
         const json = await r.json();
         if (r.status === 429) {
-          throw new Error(
-            "You've reached today's approach guide limit (20/day). Please try again tomorrow.",
-          );
+          throw new Error(formatPlanLimit(json));
         }
         if (!r.ok) throw new Error(json.error ?? "failed");
         setGuide(json.guide);
@@ -1199,7 +1200,7 @@ function FetchPostsButton({ productId }: { productId: string }) {
         });
         if (res.status === 429) {
           const json = await res.json().catch(() => ({}));
-          setError(json.error ?? "You've reached today's limit.");
+          setError(formatPlanLimit(json));
           break;
         }
       }

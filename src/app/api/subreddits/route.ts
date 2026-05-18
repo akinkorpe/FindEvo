@@ -5,6 +5,11 @@ import {
   removeTarget,
   updateTarget,
 } from "@/repositories/subreddits.repo";
+import {
+  assertSubredditCapacity,
+  PlanLimitError,
+} from "@/lib/planGate";
+import { requireUser, UnauthorizedError } from "../_auth";
 import type { SubredditPriority } from "@/types";
 
 export const runtime = "nodejs";
@@ -29,6 +34,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await requireUser();
     const body = (await request.json()) as {
       productId?: string;
       name?: string;
@@ -36,9 +42,26 @@ export async function POST(request: Request) {
     };
     if (!body.productId) throw new Error("`productId` required");
     if (!body.name) throw new Error("`name` required");
+    await assertSubredditCapacity(user.id, body.productId);
     const target = await addTarget(body.productId, body.name, body.priority);
     return NextResponse.json({ ok: true, target });
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: 401 },
+      );
+    }
+    if (err instanceof PlanLimitError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: err.message,
+          planLimit: err.status,
+        },
+        { status: 429 },
+      );
+    }
     const message = err instanceof Error ? err.message : "error";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

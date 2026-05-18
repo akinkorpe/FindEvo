@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { RateLimitError } from "@/repositories/aiCredits.repo";
+import { PlanLimitError } from "@/lib/planGate";
 import { UnauthorizedError } from "./_auth";
 
 export async function handleJson<T>(
@@ -20,6 +21,19 @@ export async function handleJson<T>(
           ok: false,
           error: err.message,
           rateLimit: err.status,
+          // Mirrored as `planLimit` so the frontend can treat both error
+          // shapes the same way — both carry plan + upgradeTo.
+          planLimit: err.status,
+        },
+        { status: 429 },
+      );
+    }
+    if (err instanceof PlanLimitError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: err.message,
+          planLimit: err.status,
         },
         { status: 429 },
       );

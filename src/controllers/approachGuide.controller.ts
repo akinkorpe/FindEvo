@@ -27,7 +27,10 @@ export function validateInput(raw: unknown): ApproachGuideInput {
   return { scoredPostId: input.scoredPostId, regenerate: !!input.regenerate };
 }
 
-export async function handle(raw: unknown): Promise<ApproachGuideOutput> {
+export async function handle(
+  raw: unknown,
+  userId?: string,
+): Promise<ApproachGuideOutput> {
   const { scoredPostId, regenerate } = validateInput(raw);
 
   if (!regenerate) {
@@ -41,7 +44,9 @@ export async function handle(raw: unknown): Promise<ApproachGuideOutput> {
   const product = await getProduct(scored.productId);
   if (!product) throw new Error(`Product ${scored.productId} not found`);
 
-  const limit = await checkRateLimit(scored.productId, "approach_guide", 1);
+  const limit = await checkRateLimit(scored.productId, "approach_guide", {
+    userId,
+  });
   if (!limit.allowed) throw new RateLimitError(limit);
 
   const intel = await getRuleIntelligence(

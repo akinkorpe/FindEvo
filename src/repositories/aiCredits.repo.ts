@@ -1,4 +1,6 @@
 import { getSupabaseServer } from "@/lib/supabase";
+import { DEFAULT_PLAN, getLimit, PLANS, type PlanKey } from "@/lib/plans";
+import { getActivePlan } from "./subscriptions.repo";
 
 export type CreditKind = "analyze_site" | "score_post" | "approach_guide";
 
@@ -91,14 +93,48 @@ export async function monthlyUsage(
   return usageSince(productId, kind, startOfMonthUtc());
 }
 
-export const RATE_LIMITS = {
-  // 8 subreddits × ~50 posts × keyword pre-filter ≈ 150–300 scoring calls per
-  // full feed refresh. 500/day gives headroom for a couple of refreshes
-  // without choking the user mid-session.
-  score_post: { window: "day" as const, max: 500 },
-  approach_guide: { window: "day" as const, max: 20 },
-  analyze_site: { window: "month" as const, max: 5 },
+// Each AI action has a fixed billing window — daily for hot paths (scoring,
+// strategy) and monthly for the expensive site-analysis call. The numeric
+// cap is plan-dependent and resolved from PLANS; the window itself is
+// product-level configuration, not pricing.
+const RATE_LIMIT_WINDOWS: Record<CreditKind, "day" | "month"> = {
+  score_post: "day",
+  approach_guide: "day",
+  analyze_site: "month",
 };
+
+const LIMIT_KEY_BY_KIND: Record<
+  CreditKind,
+  "post_score_daily" | "approach_guide_daily" | "site_analysis_monthly"
+> = {
+  score_post: "post_score_daily",
+  approach_guide: "approach_guide_daily",
+  analyze_site: "site_analysis_monthly",
+};
+
+function maxForPlan(plan: PlanKey, kind: CreditKind): number {
+  return getLimit(plan, LIMIT_KEY_BY_KIND[kind]);
+}
+
+/**
+ * Back-compat export. Callers that haven't been migrated to plan-aware
+ * checking still read these defaults — they correspond to the Starter
+ * (free) tier. New callsites should use `checkRateLimit` with `userId`.
+ */
+export const RATE_LIMITS = {
+  score_post: {
+    window: RATE_LIMIT_WINDOWS.score_post,
+    max: maxForPlan(DEFAULT_PLAN, "score_post"),
+  },
+  approach_guide: {
+    window: RATE_LIMIT_WINDOWS.approach_guide,
+    max: maxForPlan(DEFAULT_PLAN, "approach_guide"),
+  },
+  analyze_site: {
+    window: RATE_LIMIT_WINDOWS.analyze_site,
+    max: maxForPlan(DEFAULT_PLAN, "analyze_site"),
+  },
+} as const;
 
 export interface RateLimitStatus {
   kind: CreditKind;
@@ -107,28 +143,72 @@ export interface RateLimitStatus {
   used: number;
   remaining: number;
   allowed: boolean;
+  /** Which plan tier produced this limit — used by upgrade CTAs. */
+  plan: PlanKey;
+  /** Next tier up, or null if the user is already on Pro. */
+  upgradeTo: PlanKey | null;
+}
+
+interface CheckRateLimitOpts {
+  /** Authenticated user id. Drives plan lookup. When omitted, falls back to
+   *  the Starter tier so unauth/legacy callsites still get sane limits. */
+  userId?: string;
+  needed?: number;
 }
 
 export async function checkRateLimit(
   productId: string,
   kind: CreditKind,
-  needed = 1,
+  optsOrNeeded: CheckRateLimitOpts | number = {},
 ): Promise<RateLimitStatus> {
-  const cfg = RATE_LIMITS[kind];
+  // Tolerate the old `checkRateLimit(productId, kind, needed)` signature
+  // so we don't have to migrate every callsite in one go.
+  const opts: CheckRateLimitOpts =
+    typeof optsOrNeeded === "number" ? { needed: optsOrNeeded } : optsOrNeeded;
+  const needed = opts.needed ?? 1;
+
+  const plan = opts.userId
+    ? await getActivePlan(opts.userId)
+    : DEFAULT_PLAN;
+
+  const window = RATE_LIMIT_WINDOWS[kind];
+  const max = maxForPlan(plan, kind);
   const used =
-    cfg.window === "day"
+    window === "day"
       ? await dailyUsage(productId, kind)
       : await monthlyUsage(productId, kind);
-  const remaining = Math.max(0, cfg.max - used);
+  const remaining = Math.max(0, max - used);
+
+  // Compute the next tier's headline cap so the upgrade CTA can say
+  // "Growth gives you 3× this." We pick from PLANS rather than recomputing
+  // so future tier additions show up automatically.
+  const upgradeTo =
+    plan === "starter" ? "growth" : plan === "growth" ? "pro" : null;
+
   return {
     kind,
-    window: cfg.window,
-    max: cfg.max,
+    window,
+    max,
     used,
     remaining,
     allowed: remaining >= needed,
+    plan,
+    upgradeTo: upgradeTo as PlanKey | null,
   };
 }
+
+/**
+ * Resolve the headline cap for a kind on a specific plan. Used by the
+ * pricing page and upgrade banners to display "Growth: 150/day" without
+ * having to call the live rate-limit endpoint.
+ */
+export function planCap(plan: PlanKey, kind: CreditKind): number {
+  return maxForPlan(plan, kind);
+}
+
+// Re-export PLANS for callers that already import from this module — saves a
+// second import line at every callsite.
+export { PLANS };
 
 export class RateLimitError extends Error {
   status: RateLimitStatus;

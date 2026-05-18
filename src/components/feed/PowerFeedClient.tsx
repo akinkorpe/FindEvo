@@ -992,10 +992,14 @@ function StrategyPanel({
 
   return (
     <aside
-      className={
-        // Mobile: fullscreen overlay; Desktop: sidebar.
-        "fixed inset-0 z-40 flex min-h-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
-      }
+      // Mobile: fullscreen overlay anchored to the dynamic viewport so the
+      // sticky bottom action bar stays in view as iOS's URL bar shows/hides.
+      // `100dvh` is the height that already accounts for retracting browser
+      // chrome — `inset-0` against `100vh` would put the action bar below
+      // the visible area on iOS, which was the bug the user reported.
+      // Desktop: ignore all of that and become a 420px right rail.
+      style={{ height: "100dvh" }}
+      className="fixed inset-x-0 top-0 z-40 flex min-h-0 flex-col overflow-hidden overscroll-contain border-l border-ink-100 bg-white xl:static xl:z-auto xl:!h-full xl:w-[420px] xl:shrink-0"
     >
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">
@@ -1117,7 +1121,12 @@ function StrategyPanel({
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-ink-100 bg-white px-5 py-4">
+      <div
+        // pb honors iOS home indicator inset on mobile; the px-5 py-4 fallback
+        // still applies because env(safe-area-inset-bottom) is 0 on desktop.
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        className="flex shrink-0 items-center gap-2 border-t border-ink-100 bg-white px-5 pt-4"
+      >
         <Button variant="ghost" className="flex-1" onClick={onClose}>
           Dismiss
         </Button>

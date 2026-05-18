@@ -1006,7 +1006,7 @@ function StrategyPanel({
       // xl+: a 420px right rail inside the Feed's fixed-height shell — we
       // strip the inline height (replaced with h-full via a class) so the
       // panel fills its flex parent instead of being viewport-tall.
-      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-contain border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
+      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
     >
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">
@@ -1025,14 +1025,19 @@ function StrategyPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 pb-10">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-5 py-5 pb-10">
         <div>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
             Source
           </div>
-          <Link
+          {/* Plain <a> — Next.js <Link> prefetches and intercepts events for
+              client-side routing, which Reddit (external URL) doesn't need
+              and which has been observed to interfere with wheel events on
+              some browsers. */}
+          <a
             href={selected.post.url}
             target="_blank"
+            rel="noopener noreferrer"
             className="group block rounded-xl border border-ink-100 p-3 hover:border-ink-200"
           >
             <div className="text-xs text-ink-500">
@@ -1041,7 +1046,7 @@ function StrategyPanel({
             <div className="mt-1 line-clamp-2 text-sm font-semibold text-ink-900 group-hover:text-brand-700">
               {selected.post.title}
             </div>
-          </Link>
+          </a>
         </div>
 
         <Card className="p-4">

@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 // 390px is the iPhone 12/13/14/15 width — the standard "small modern phone"
 // viewport. If something overflows here it overflows on every iPhone since 2020.
 
-const UNAUTH_ROUTES = ['/landing', '/signin', '/onboarding', '/privacy', '/terms'];
+const UNAUTH_ROUTES = ['/landing', '/signin', '/onboarding', '/privacy', '/terms', '/pricing'];
 
 async function getHorizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => {

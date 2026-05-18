@@ -34,6 +34,7 @@ function Nav() {
         <nav className="hidden items-center gap-8 text-sm text-ink-600 md:flex">
           <a href="#how" className="hover:text-ink-900">How it works</a>
           <a href="#features" className="hover:text-ink-900">Features</a>
+          <Link href="/pricing" className="hover:text-ink-900">Pricing</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link
@@ -294,6 +295,7 @@ function Footer() {
         </div>
         <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-500">
           <a href="#features" className="hover:text-ink-900">Product</a>
+          <Link href="/pricing" className="hover:text-ink-900">Pricing</Link>
           <Link href="/privacy" className="hover:text-ink-900">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-ink-900">Terms of Service</Link>
           <a href="mailto:contact@findevo.com" className="hover:text-ink-900">Contact</a>

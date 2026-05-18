@@ -99,6 +99,24 @@ export async function updateLeadStatus(
   return mapLead(data);
 }
 
+export async function deleteLead(id: string): Promise<void> {
+  // lead_interactions cascades from the FK; no manual cleanup needed.
+  const { error } = await getSupabaseServer()
+    .from("leads")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteLeads(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await getSupabaseServer()
+    .from("leads")
+    .delete()
+    .in("id", ids);
+  if (error) throw error;
+}
+
 export async function getLead(id: string): Promise<Lead | null> {
   const { data, error } = await getSupabaseServer()
     .from("leads")

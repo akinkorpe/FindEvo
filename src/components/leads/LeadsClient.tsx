@@ -52,6 +52,12 @@ export default function LeadsClient() {
   const [product, setProduct] = useState<Product | null>(null);
   const [noProduct, setNoProduct] = useState(false);
   const [mode, setMode] = useState<Mode>("table");
+  // Row-level selection for bulk actions in table view. Kept here (not in the
+  // store) because it's pure UI state — refreshing the leads list shouldn't
+  // wipe checked rows mid-action.
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const {
     leads,
     selectedId,
@@ -60,6 +66,7 @@ export default function LeadsClient() {
     select,
     loadDetail,
     updateStatus,
+    deleteLeads,
     isLoading,
   } = useLeadsStore();
 
@@ -81,6 +88,52 @@ export default function LeadsClient() {
   useEffect(() => {
     if (selectedId) loadDetail(selectedId);
   }, [selectedId, loadDetail]);
+
+  // Drop checked ids that no longer exist (after deletes, reloads, filters).
+  useEffect(() => {
+    if (checkedIds.size === 0) return;
+    const live = new Set(leads.map((l) => l.id));
+    let mutated = false;
+    const next = new Set<string>();
+    checkedIds.forEach((id) => {
+      if (live.has(id)) next.add(id);
+      else mutated = true;
+    });
+    if (mutated) setCheckedIds(next);
+  }, [leads, checkedIds]);
+
+  // Selection is only meaningful on the table view; switching to board clears it.
+  useEffect(() => {
+    if (mode !== "table" && checkedIds.size > 0) setCheckedIds(new Set());
+  }, [mode, checkedIds.size]);
+
+  function toggleOne(id: string) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setCheckedIds((prev) =>
+      prev.size === leads.length ? new Set() : new Set(leads.map((l) => l.id)),
+    );
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(checkedIds);
+    if (ids.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await deleteLeads(ids);
+      setCheckedIds(new Set());
+      setConfirmingDelete(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   const stats = useMemo(() => {
     const totalActive = leads.filter(
@@ -154,12 +207,27 @@ export default function LeadsClient() {
             </div>
           </div>
 
+          {mode === "table" && checkedIds.size > 0 && (
+            <BulkActionsBar
+              count={checkedIds.size}
+              total={leads.length}
+              onClear={() => setCheckedIds(new Set())}
+              onDelete={() => setConfirmingDelete(true)}
+            />
+          )}
+
           {isLoading && leads.length === 0 ? (
             <LoadingRows />
           ) : leads.length === 0 ? (
             <EmptyLeads productId={product?.id} />
           ) : mode === "table" ? (
-            <LeadsTable leads={leads} onSelect={(id) => select(id)} />
+            <LeadsTable
+              leads={leads}
+              onSelect={(id) => select(id)}
+              checkedIds={checkedIds}
+              onToggleOne={toggleOne}
+              onToggleAll={toggleAll}
+            />
           ) : (
             <LeadsBoard
               leads={leads}
@@ -176,6 +244,15 @@ export default function LeadsClient() {
           detail={detail}
           onClose={() => select(null)}
           onStatus={(status) => updateStatus(selectedId, status)}
+        />
+      )}
+
+      {confirmingDelete && (
+        <DeleteConfirm
+          count={checkedIds.size}
+          busy={isDeleting}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={handleBulkDelete}
         />
       )}
     </>
@@ -221,10 +298,22 @@ function StatCard({
 function LeadsTable({
   leads,
   onSelect,
+  checkedIds,
+  onToggleOne,
+  onToggleAll,
 }: {
   leads: Lead[];
   onSelect: (id: string) => void;
+  checkedIds: Set<string>;
+  onToggleOne: (id: string) => void;
+  onToggleAll: () => void;
 }) {
+  const allChecked = leads.length > 0 && checkedIds.size === leads.length;
+  // indeterminate is an IDL property, not an HTML attribute, so we set it
+  // via a ref callback after the checkbox mounts.
+  const setHeaderIndeterminate = (el: HTMLInputElement | null) => {
+    if (el) el.indeterminate = checkedIds.size > 0 && !allChecked;
+  };
   return (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
@@ -232,7 +321,14 @@ function LeadsTable({
           <thead className="border-b border-ink-100 bg-ink-50/60 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
             <tr>
               <th className="w-10 px-4 py-3">
-                <input type="checkbox" className="rounded border-ink-300" />
+                <input
+                  type="checkbox"
+                  aria-label={allChecked ? "Deselect all" : "Select all"}
+                  ref={setHeaderIndeterminate}
+                  checked={allChecked}
+                  onChange={onToggleAll}
+                  className="rounded border-ink-300"
+                />
               </th>
               <th className="px-4 py-3 text-left">Lead Identity</th>
               <th className="px-4 py-3 text-left">Source</th>
@@ -246,14 +342,23 @@ function LeadsTable({
             {leads.map((lead) => {
               const status = STATUS_META[lead.status];
               const high = /high/i.test(lead.intentLabel);
+              const isChecked = checkedIds.has(lead.id);
               return (
                 <tr
                   key={lead.id}
                   onClick={() => onSelect(lead.id)}
-                  className="cursor-pointer border-b border-ink-100 transition hover:bg-ink-50/60"
+                  className={`cursor-pointer border-b border-ink-100 transition ${
+                    isChecked ? "bg-brand-50/40" : "hover:bg-ink-50/60"
+                  }`}
                 >
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" className="rounded border-ink-300" />
+                    <input
+                      type="checkbox"
+                      aria-label={`Select lead ${lead.redditUsername}`}
+                      checked={isChecked}
+                      onChange={() => onToggleOne(lead.id)}
+                      className="rounded border-ink-300"
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -611,6 +716,89 @@ function EmptyShell() {
         </Card>
       </main>
     </>
+  );
+}
+
+function BulkActionsBar({
+  count,
+  total,
+  onClear,
+  onDelete,
+}: {
+  count: number;
+  total: number;
+  onClear: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/60 px-3 py-2 text-sm sm:px-4">
+      <div className="flex items-center gap-2 text-ink-700">
+        <span className="font-semibold text-brand-700">{count}</span>
+        <span className="text-ink-500">of {total} selected</span>
+        <button
+          type="button"
+          onClick={onClear}
+          className="ml-1 rounded text-xs font-medium text-ink-500 underline-offset-2 hover:text-ink-700 hover:underline"
+        >
+          Clear
+        </button>
+      </div>
+      <Button
+        variant="danger"
+        onClick={onDelete}
+        rightIcon={<IconClose className="h-3.5 w-3.5" />}
+        className="!py-1.5 text-xs"
+      >
+        Delete {count === 1 ? "lead" : `${count} leads`}
+      </Button>
+    </div>
+  );
+}
+
+function DeleteConfirm({
+  count,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  count: number;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Delete leads"
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+    >
+      <div className="absolute inset-0 bg-ink-900/30 backdrop-blur-sm" onClick={busy ? undefined : onCancel} />
+      <div className="relative w-full max-w-md rounded-2xl border border-ink-100 bg-white p-6 shadow-pop">
+        <div className="mb-3 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-600">
+            <IconAlert className="h-4 w-4" />
+          </span>
+          <h3 className="text-base font-semibold text-ink-900">
+            Delete {count === 1 ? "this lead" : `${count} leads`}?
+          </h3>
+        </div>
+        <p className="text-sm text-ink-600">
+          This permanently removes {count === 1 ? "the lead" : "these leads"}{" "}
+          and {count === 1 ? "its" : "their"} interaction history. The
+          underlying Reddit post and intent score stay in the Power Feed — you
+          can re-add later if you change your mind.
+        </p>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={onConfirm} loading={busy} disabled={busy}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

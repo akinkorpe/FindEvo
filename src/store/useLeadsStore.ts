@@ -11,6 +11,7 @@ interface LeadsState {
   load: (productId: string) => Promise<void>;
   loadDetail: (id: string) => Promise<void>;
   updateStatus: (id: string, status: LeadStatus) => Promise<void>;
+  deleteLeads: (ids: string[]) => Promise<void>;
 }
 
 export const useLeadsStore = create<LeadsState>((set, get) => ({
@@ -52,5 +53,25 @@ export const useLeadsStore = create<LeadsState>((set, get) => ({
     if (get().detail?.lead.id === id) {
       await get().loadDetail(id);
     }
+  },
+  deleteLeads: async (ids) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    // Optimistic: drop them from local state immediately. If a delete fails
+    // server-side the next `load(productId)` will reconcile by bringing the
+    // row back. Keeping the UI snappy matters more than perfect consistency
+    // for a destructive action the user just confirmed.
+    set({
+      leads: get().leads.filter((l) => !idSet.has(l.id)),
+      selectedId:
+        get().selectedId && idSet.has(get().selectedId!) ? null : get().selectedId,
+      detail:
+        get().detail && idSet.has(get().detail!.lead.id) ? null : get().detail,
+    });
+    await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/leads/${id}`, { method: "DELETE" }).catch(() => undefined),
+      ),
+    );
   },
 }));

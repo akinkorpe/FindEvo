@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  deleteLead,
   getLead,
   updateLeadStatus,
   listInteractions,
@@ -41,6 +42,22 @@ export async function PATCH(
       await addInteraction(id, "note", body.note.trim());
     }
     return NextResponse.json({ ok: true, lead });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "error";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  try {
+    // RLS enforces ownership — a foreign id either returns 0 rows or errors;
+    // either way the user can only delete their own leads.
+    await deleteLead(id);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "error";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });

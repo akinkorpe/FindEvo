@@ -541,22 +541,24 @@ function LoadingRows() {
 }
 
 function EmptyLeads({ productId }: { productId?: string }) {
+  const onboarded = !!productId;
   return (
     <Card className="mx-auto max-w-lg p-10 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
         <IconUser className="h-5 w-5" />
       </div>
       <h3 className="text-base font-semibold text-ink-900">
-        No leads yet
+        {onboarded ? "Add your first lead" : "No leads yet"}
       </h3>
       <p className="mx-auto mt-2 max-w-sm text-sm text-ink-500">
-        Add high-intent posts from the Power Feed and they&apos;ll show up here
-        as tracked leads.
+        {onboarded
+          ? "Open the Power Feed, pick a high-intent post, and hit “Add to CRM” — it will show up here."
+          : "Once you onboard a product we’ll start surfacing qualified leads from Reddit."}
       </p>
       <div className="mt-5 flex justify-center">
-        <Link href={productId ? "/feed" : "/onboarding"}>
+        <Link href={onboarded ? "/feed" : "/onboarding"}>
           <Button rightIcon={<IconArrowRight className="h-4 w-4" />}>
-            {productId ? "Open Power Feed" : "Start Onboarding"}
+            {onboarded ? "Add your first lead from the Power Feed" : "Start Onboarding"}
           </Button>
         </Link>
       </div>

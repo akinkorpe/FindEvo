@@ -67,6 +67,10 @@ export default function DashboardClient() {
   }, []);
 
   if (!loading && error === "no-product") return <EmptyState />;
+  // Any other error path: surface it instead of rendering metric cards with
+  // misleading zeros. Without this branch a failed /api/dashboard call left
+  // every stat at 0 with no signal that data never loaded.
+  if (!loading && error) return <ErrorState message={error} />;
 
   return (
     <>
@@ -347,6 +351,41 @@ function EmptyState() {
             <Link href="/onboarding">
               <Button rightIcon={<IconArrowRight className="h-4 w-4" />}>
                 Start Onboarding
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </main>
+    </>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <>
+      <Header title="Intelligence Hub" />
+      <main className="flex-1 px-4 py-8 sm:px-8 sm:py-12">
+        <Card className="mx-auto max-w-2xl border-red-200 bg-red-50/40 p-6 text-center sm:p-10">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <IconAlert className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-ink-900">
+            We couldn&apos;t load your dashboard
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-600">
+            {message}
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <Button
+              variant="ghost"
+              className="border border-ink-200 bg-white"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+            <Link href="/feed">
+              <Button rightIcon={<IconArrowRight className="h-4 w-4" />}>
+                Open Power Feed
               </Button>
             </Link>
           </div>

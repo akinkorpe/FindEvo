@@ -51,6 +51,41 @@ const RANGE_DAYS: Record<Range, number> = {
   YTD: 365,
 };
 
+// At 7D the chart shows weekday names; at 30D a month-day pair (which we keep
+// terse with "Mar 5" — the chart never needs the year because the range can't
+// span Dec→Jan in 30 days); at YTD just the month abbreviation since every
+// label is a month boundary.
+function formatVelocity(
+  velocity: LeadVelocityPoint[],
+  range: Range,
+): { label: string; value: number }[] {
+  return velocity.map((v) => {
+    const d = new Date(v.date);
+    let label: string;
+    if (range === "7D") {
+      label = d.toLocaleDateString(undefined, { weekday: "short" });
+    } else if (range === "30D") {
+      label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    } else {
+      label = d.toLocaleDateString(undefined, { month: "short" });
+    }
+    return { label, value: v.count };
+  });
+}
+
+// Label/dot decimation. 7 points: show all. 30: ~6 labels (every 5 days).
+// 365: ~12 labels (every 30 days). Numbers are chosen so the first and last
+// sample are always labeled (the chart enforces this), and the middle ones
+// land at round intervals.
+function labelEvery(range: Range): number {
+  return range === "7D" ? 1 : range === "30D" ? 5 : 30;
+}
+function dotEvery(range: Range): number {
+  // Dots at the same cadence as labels — denser dots than labels looks busy
+  // without adding information.
+  return labelEvery(range);
+}
+
 export default function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -202,13 +237,10 @@ export default function DashboardClient() {
                 <div className="h-[220px] animate-pulse rounded-xl bg-ink-100" />
               ) : (
                 <AreaChart
-                  data={(data?.velocity ?? []).map((v) => ({
-                    label: new Date(v.date).toLocaleDateString(undefined, {
-                      weekday: "short",
-                    }),
-                    value: v.count,
-                  }))}
+                  data={formatVelocity(data?.velocity ?? [], range)}
                   height={220}
+                  labelEvery={labelEvery(range)}
+                  dotEvery={dotEvery(range)}
                 />
               )}
             </div>

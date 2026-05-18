@@ -27,7 +27,6 @@ const FEATURE_ROWS: FeatureRow[] = [
   { label: "Post intent scores / day", value: (p) => `${p.limits.post_score_daily}` },
   { label: "Approach guides / day", value: (p) => `${p.limits.approach_guide_daily}` },
   { label: "Site analyses / month", value: (p) => `${p.limits.site_analysis_monthly}` },
-  { label: "CSV lead export", value: (p) => p.limits.lead_export },
   { label: "Subreddit rule history", value: (p) => p.limits.rule_history },
   { label: "Email support", value: () => true },
 ];
@@ -122,7 +121,6 @@ function PlanCard({ plan, highlighted }: { plan: Plan; highlighted: boolean }) {
     `${plan.limits.approach_guide_daily} approach guides / day`,
     `${plan.limits.site_analysis_monthly} site analyses / month`,
   ];
-  if (plan.limits.lead_export) bullets.push("CSV lead export");
   if (plan.limits.rule_history) bullets.push("Subreddit rule history");
 
   return (

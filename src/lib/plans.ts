@@ -17,8 +17,6 @@ export interface PlanLimits {
   approach_guide_daily: number;
   /** Per-month site analyses (`/api/analyze-site`). */
   site_analysis_monthly: number;
-  /** Can the user export leads to CSV? */
-  lead_export: boolean;
   /** Can the user see subreddit rule history beyond the latest snapshot? */
   rule_history: boolean;
 }
@@ -44,7 +42,6 @@ export const PLANS: Record<PlanKey, Plan> = {
       post_score_daily: 50,
       approach_guide_daily: 5,
       site_analysis_monthly: 1,
-      lead_export: false,
       rule_history: false,
     },
   },
@@ -58,7 +55,6 @@ export const PLANS: Record<PlanKey, Plan> = {
       post_score_daily: 150,
       approach_guide_daily: 15,
       site_analysis_monthly: 3,
-      lead_export: true,
       rule_history: true,
     },
   },
@@ -74,7 +70,6 @@ export const PLANS: Record<PlanKey, Plan> = {
       post_score_daily: 500,
       approach_guide_daily: 50,
       site_analysis_monthly: 10,
-      lead_export: true,
       rule_history: true,
     },
   },

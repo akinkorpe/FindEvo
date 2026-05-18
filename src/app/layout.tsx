@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Audiowide, Geist, Geist_Mono, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
@@ -39,6 +39,16 @@ export const metadata: Metadata = {
   description:
     "AI-powered Reddit lead generation — analyze your site, surface high-intent threads, and track outreach.",
   manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({

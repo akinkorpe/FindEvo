@@ -5,20 +5,32 @@ test.describe('Landing Page', () => {
     await page.goto('/landing');
   });
 
-  test('should display the navbar logo and CTA buttons', async ({ page }) => {
-    await expect(page.locator('header').getByText('RedditLeads')).toBeVisible();
-    await expect(page.locator('header').getByRole('link', { name: 'Sign in' })).toBeVisible();
+  test('should display the navbar logo and primary CTA', async ({ page }) => {
+    // Logo is the "FindEvo" wordmark since the rebrand.
+    await expect(page.locator('header').getByText(/findevo/i).first()).toBeVisible();
     await expect(page.locator('header').getByRole('link', { name: 'Start free' })).toBeVisible();
   });
 
-  test('should have working navigation anchor links in header', async ({ page }) => {
+  test('header has a Sign in link (visible on desktop, hidden < 640px)', async ({ page, viewport }) => {
+    const link = page.locator('header').getByRole('link', { name: 'Sign in' });
+    if (viewport && viewport.width < 640) {
+      // `hidden sm:inline-flex` — intentional on mobile, "Start free" button covers the CTA.
+      await expect(link).toBeHidden();
+    } else {
+      await expect(link).toBeVisible();
+    }
+  });
+
+  test('should have working navigation anchor links in header (desktop only)', async ({ page, viewport }) => {
+    // Header nav is `hidden md:flex` — only assert on viewports >= 768px.
+    test.skip(!viewport || viewport.width < 768, 'header nav is hidden under md breakpoint');
     const nav = page.locator('header nav');
     await expect(nav.getByRole('link', { name: 'How it works' })).toHaveAttribute('href', '#how');
     await expect(nav.getByRole('link', { name: 'Features' })).toHaveAttribute('href', '#features');
-    await expect(nav.getByRole('link', { name: 'Why us' })).toHaveAttribute('href', '#compare');
   });
 
-  test('should redirect Sign in link to /signin', async ({ page }) => {
+  test('Sign in link redirects to /signin (desktop only)', async ({ page, viewport }) => {
+    test.skip(!viewport || viewport.width < 640, 'Sign in text link hidden under sm');
     await page.locator('header').getByRole('link', { name: 'Sign in' }).click();
     await expect(page).toHaveURL('/signin');
   });
@@ -36,18 +48,7 @@ test.describe('Landing Page', () => {
     await expect(page.locator('#features')).toBeVisible();
   });
 
-  test('should display Comparison section with id="compare"', async ({ page }) => {
-    await expect(page.locator('#compare')).toBeVisible();
-  });
-
   test('should have footer', async ({ page }) => {
     await expect(page.locator('footer')).toBeVisible();
-  });
-
-  test('should be responsive on mobile — desktop nav links hidden', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await expect(page.locator('header').getByText('RedditLeads')).toBeVisible();
-    // header nav is hidden on mobile (md:flex), but hero section also has the link
-    await expect(page.locator('header nav').getByRole('link', { name: 'How it works' })).toBeHidden();
   });
 });

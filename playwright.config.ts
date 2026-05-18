@@ -47,15 +47,11 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
 
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
+    /* Test against mobile viewports — 390px is iPhone 12/13/14/15 width. */
+    {
+      name: 'Mobile Chrome',
+      use: { ...devices['iPhone 13'] },
+    },
 
     /* Test against branded browsers. */
     // {

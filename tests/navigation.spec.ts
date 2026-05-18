@@ -36,6 +36,6 @@ test.describe('Navigation & Routing', () => {
 
   test('landing page should have correct title', async ({ page }) => {
     await page.goto('/landing');
-    await expect(page).toHaveTitle(/RedditLeads/i);
+    await expect(page).toHaveTitle(/FindEvo/i);
   });
 });

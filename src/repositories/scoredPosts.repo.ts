@@ -33,7 +33,7 @@ export async function upsertScored(
 
 export async function countForProduct(
   productId: string,
-  opts: { minScore?: number } = {},
+  opts: { minScore?: number; sinceIso?: string } = {},
 ): Promise<number> {
   let query = getSupabaseServer()
     .from("scored_posts")
@@ -43,6 +43,9 @@ export async function countForProduct(
     .or("expires_at.is.null,expires_at.gt.now()");
   if (opts.minScore !== undefined) {
     query = query.gte("intent_score", opts.minScore);
+  }
+  if (opts.sinceIso) {
+    query = query.gte("created_at", opts.sinceIso);
   }
   const { count, error } = await query;
   if (error) throw error;

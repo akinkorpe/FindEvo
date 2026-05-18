@@ -26,12 +26,18 @@ import type {
 interface DashboardData {
   product: { id: string; name: string | null; websiteUrl: string };
   metrics: {
+    /** Lifetime count of scored posts with intent ≥ 60 (Warm/Hot Lead in feed UI). */
     highIntentCount: number;
-    totalLeads: number;
+    /** Subset of the above scored today (UTC) — used for the "+N today" trend line. */
+    highIntentToday: number;
+    /** Leads currently in `engaged` or `active_pipeline` status. */
     activeThreads: number;
+    /** Leads created in the last 7 days — drives the Active Threads trend line. */
+    newLeadsLast7Days: number;
+    /** All-time conversion rate (converted / contacted). */
     conversionRate: number;
-    aiCredits: number;
-    aiCreditsMax: number;
+    /** Last-7-day window of the same ratio — drives the "this week" trend line. */
+    conversionRateWeek: number;
   };
   velocity: LeadVelocityPoint[];
   intelligenceFeed: IntelligenceFeedItem[];
@@ -39,12 +45,20 @@ interface DashboardData {
 
 type Range = "7D" | "30D" | "YTD";
 
+const RANGE_DAYS: Record<Range, number> = {
+  "7D": 7,
+  "30D": 30,
+  YTD: 365,
+};
+
 export default function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>("7D");
+  const [productId, setProductId] = useState<string | null>(null);
 
+  // First mount: discover the product and load the default 7D window.
   useEffect(() => {
     (async () => {
       try {
@@ -53,7 +67,10 @@ export default function DashboardClient() {
           setError("no-product");
           return;
         }
-        const res = await fetch(`/api/dashboard?productId=${first.product.id}`);
+        setProductId(first.product.id);
+        const res = await fetch(
+          `/api/dashboard?productId=${first.product.id}&velocityDays=${RANGE_DAYS[range]}`,
+        );
         const json = await res.json();
         if (!res.ok) {
           setError(json.error ?? "failed");
@@ -64,7 +81,26 @@ export default function DashboardClient() {
         setLoading(false);
       }
     })();
+    // Intentionally empty deps — bootstrap once, then refetch via the range
+    // effect below. Putting `range` here would re-bootstrap on every toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Subsequent range toggles: only refetch the velocity-affected data.
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(
+        `/api/dashboard?productId=${productId}&velocityDays=${RANGE_DAYS[range]}`,
+      );
+      const json = await res.json();
+      if (!cancelled && res.ok) setData(json);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [range, productId]);
 
   if (!loading && error === "no-product") return <EmptyState />;
   // Any other error path: surface it instead of rendering metric cards with
@@ -79,7 +115,7 @@ export default function DashboardClient() {
         searchPlaceholder="Search leads, posts..."
       />
       <main className="flex-1 space-y-5 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6 md:px-8 md:py-8">
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
           {loading ? (
             <>
               <MetricCardSkeleton />
@@ -89,18 +125,30 @@ export default function DashboardClient() {
           ) : (
             <>
               <MetricCard
-                label="High-Intent Leads"
+                label="High-Intent Posts"
                 value={data?.metrics.highIntentCount ?? 0}
-                trend={`+${Math.max(0, data?.metrics.highIntentCount ?? 0)} today`}
-                trendTone="up"
+                trend={
+                  (data?.metrics.highIntentToday ?? 0) > 0
+                    ? `+${data!.metrics.highIntentToday} today`
+                    : "No new scores today"
+                }
+                trendTone={
+                  (data?.metrics.highIntentToday ?? 0) > 0 ? "up" : "neutral"
+                }
                 icon={<IconUser className="h-4 w-4" />}
                 spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
               />
               <MetricCard
                 label="Active Threads"
                 value={data?.metrics.activeThreads ?? 0}
-                trend="→ Steady"
-                trendTone="neutral"
+                trend={
+                  (data?.metrics.newLeadsLast7Days ?? 0) > 0
+                    ? `+${data!.metrics.newLeadsLast7Days} leads last 7d`
+                    : "No new leads this week"
+                }
+                trendTone={
+                  (data?.metrics.newLeadsLast7Days ?? 0) > 0 ? "up" : "neutral"
+                }
                 icon={<IconChat className="h-4 w-4" />}
                 spark={data?.velocity.slice(-7).map((v) => v.count) ?? []}
               />
@@ -108,8 +156,14 @@ export default function DashboardClient() {
                 label="Conversion Rate"
                 value={data?.metrics.conversionRate ?? 0}
                 suffix="%"
-                trend={`${data?.metrics.conversionRate ? "+" : ""}${data?.metrics.conversionRate ?? 0}% this week`}
-                trendTone="up"
+                trend={
+                  data?.metrics.conversionRateWeek
+                    ? `${data.metrics.conversionRateWeek}% this week`
+                    : "No conversions this week"
+                }
+                trendTone={
+                  (data?.metrics.conversionRateWeek ?? 0) > 0 ? "up" : "neutral"
+                }
                 icon={<IconFlame className="h-4 w-4" />}
               />
             </>

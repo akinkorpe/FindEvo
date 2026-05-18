@@ -33,11 +33,14 @@ export async function countByStatus(
 
 export async function countAllStatuses(
   productId: string,
+  opts: { sinceIso?: string } = {},
 ): Promise<Record<string, number>> {
-  const { data, error } = await getSupabaseServer()
+  let q = getSupabaseServer()
     .from("leads")
     .select("status")
     .eq("product_id", productId);
+  if (opts.sinceIso) q = q.gte("created_at", opts.sinceIso);
+  const { data, error } = await q;
   if (error) throw error;
   const counts: Record<string, number> = {};
   for (const row of data ?? []) {

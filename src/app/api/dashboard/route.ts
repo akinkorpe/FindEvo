@@ -1,20 +1,34 @@
 import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import {
-  countAll,
-  countAllStatuses,
-  leadVelocity,
-  listLeads,
-} from "@/repositories/leads.repo";
+import { countAllStatuses, leadVelocity } from "@/repositories/leads.repo";
 import { countForProduct, listForProduct } from "@/repositories/scoredPosts.repo";
-import { listTargets } from "@/repositories/subreddits.repo";
-import { creditBalance } from "@/repositories/aiCredits.repo";
 import { getProduct } from "@/repositories/products.repo";
 import { requireUser, UnauthorizedError } from "../_auth";
 
 export const runtime = "nodejs";
 
-const CREDIT_GRANT = 10_000;
+// Match the feed's Hot/Warm Lead threshold so the dashboard count agrees with
+// what the user sees in the Power Feed badges. Anything below 60 is Lukewarm
+// or Cool — not what we want to call out as "high intent" on the hero card.
+const HIGH_INTENT_THRESHOLD = 60;
+
+function startOfTodayUtcIso(): string {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function sevenDaysAgoIso(): string {
+  return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function clampDays(raw: string | null): number {
+  // 7D / 30D / 365 (YTD-ish — using 365 keeps the SQL simple and the chart
+  // honest; true YTD would jump back to Jan 1 which is ugly mid-January).
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 7;
+  return Math.min(365, Math.max(7, Math.round(n)));
+}
 
 export async function GET(request: Request) {
   if (!isSupabaseConfigured()) {
@@ -31,40 +45,55 @@ export async function GET(request: Request) {
       { status: 400 },
     );
   }
+  const velocityDays = clampDays(url.searchParams.get("velocityDays"));
 
   try {
     const user = await requireUser();
     const product = await getProduct(productId, user.id);
     if (!product) throw new Error("product not found");
 
+    const todayIso = startOfTodayUtcIso();
+    const weekAgoIso = sevenDaysAgoIso();
+
     const [
-      highIntentCount,
-      totalLeads,
-      statusCounts,
+      highIntentTotal,
+      highIntentToday,
+      statusCountsAll,
+      statusCountsWeek,
       velocity,
       feed,
-      targets,
-      usageBalance,
-      recentLeads,
     ] = await Promise.all([
-      countForProduct(productId, { minScore: 25 }),
-      countAll(productId),
+      countForProduct(productId, { minScore: HIGH_INTENT_THRESHOLD }),
+      countForProduct(productId, {
+        minScore: HIGH_INTENT_THRESHOLD,
+        sinceIso: todayIso,
+      }),
       countAllStatuses(productId),
-      leadVelocity(productId, 7),
+      countAllStatuses(productId, { sinceIso: weekAgoIso }),
+      leadVelocity(productId, velocityDays),
       listForProduct(productId, { limit: 3 }),
-      listTargets(productId),
-      creditBalance(productId),
-      listLeads(productId, { limit: 5 }),
     ]);
 
-    const activePipeline = statusCounts["active_pipeline"] ?? 0;
-    const engaged = statusCounts["engaged"] ?? 0;
-    const converted = statusCounts["converted"] ?? 0;
-    const activeThreads = activePipeline + engaged;
-    const contactedish = converted + activePipeline + engaged;
+    const activePipelineAll = statusCountsAll["active_pipeline"] ?? 0;
+    const engagedAll = statusCountsAll["engaged"] ?? 0;
+    const convertedAll = statusCountsAll["converted"] ?? 0;
+    const activeThreads = activePipelineAll + engagedAll;
+    const contactedAll = convertedAll + activePipelineAll + engagedAll;
     const conversionRate =
-      contactedish > 0 ? Number(((converted / contactedish) * 100).toFixed(1)) : 0;
-    const creditsLeft = Math.max(0, CREDIT_GRANT + usageBalance);
+      contactedAll > 0
+        ? Number(((convertedAll / contactedAll) * 100).toFixed(1))
+        : 0;
+
+    // Same denominator pattern for the last 7 days so "this week" actually
+    // reflects this-week conversion, not a copy of the all-time number.
+    const activePipelineWeek = statusCountsWeek["active_pipeline"] ?? 0;
+    const engagedWeek = statusCountsWeek["engaged"] ?? 0;
+    const convertedWeek = statusCountsWeek["converted"] ?? 0;
+    const contactedWeek = convertedWeek + activePipelineWeek + engagedWeek;
+    const conversionRateWeek =
+      contactedWeek > 0
+        ? Number(((convertedWeek / contactedWeek) * 100).toFixed(1))
+        : 0;
 
     const intelligenceFeed = feed.slice(0, 3).map((f) => ({
       id: f.id,
@@ -86,54 +115,23 @@ export async function GET(request: Request) {
       createdAt: f.createdAt,
     }));
 
-    const targetCount = targets.length || 1;
-    const highPriority = targets.filter((t) => t.priority === "high").length;
-    const penetration = Math.min(100, Math.round((highPriority / targetCount) * 100) || 0);
-
-    const campaignHealth = [
-      {
-        label: "Subreddit Coverage",
-        percent: Math.max(10, penetration || 30),
-        note: targets.length ? `${targets.length} target subreddits` : "No targets yet",
-      },
-      {
-        label: "Reply Engagement",
-        percent:
-          totalLeads > 0
-            ? Math.round(((engaged + activePipeline) / totalLeads) * 100)
-            : 0,
-        note:
-          engaged + activePipeline > 0
-            ? `${engaged + activePipeline} threads in motion`
-            : "No engaged threads yet",
-      },
-      {
-        label: "Pipeline Flow",
-        percent:
-          totalLeads > 0
-            ? Math.round((activePipeline / Math.max(1, totalLeads - converted)) * 100)
-            : 0,
-        note: activePipeline
-          ? `${activePipeline} leads moving forward`
-          : "No active pipeline yet",
-      },
-    ];
-
     return NextResponse.json({
       ok: true,
       product,
       metrics: {
-        highIntentCount,
-        totalLeads,
+        highIntentCount: highIntentTotal,
+        highIntentToday,
         activeThreads,
+        // Lead-velocity-derived weekly delta in active threads. We don't store
+        // historical snapshots of `engaged + active_pipeline`, so the closest
+        // honest signal is "new qualified leads in the last 7 days".
+        newLeadsLast7Days: velocity.reduce((acc, v) => acc + v.count, 0),
         conversionRate,
-        aiCredits: creditsLeft,
-        aiCreditsMax: CREDIT_GRANT,
+        conversionRateWeek,
       },
       velocity,
+      velocityDays,
       intelligenceFeed,
-      campaignHealth,
-      recentLeads,
     });
   } catch (err) {
     if (err instanceof UnauthorizedError) {

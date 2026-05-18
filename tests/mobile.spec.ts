@@ -36,12 +36,17 @@ test.describe('Mobile viewport (390px)', () => {
 
   test('signin form is reachable and tappable on mobile', async ({ page }) => {
     await page.goto('/signin');
+    await page.waitForLoadState('networkidle');
+    // Wait for fonts AND for our input style to actually apply. On a cold dev
+    // server the stylesheet can land after the input does, so toBeVisible
+    // passes against a 19px raw input. Polling clientHeight directly avoids
+    // the race instead of fighting it with arbitrary sleeps.
+    await page.evaluate(() => document.fonts.ready);
     const email = page.locator('input[type="email"]').first();
     await expect(email).toBeVisible();
-    // Tap target check — Apple's HIG recommends ≥ 44px, Material says ≥ 48px.
-    // We accept ≥ 40px as a pragmatic floor (matches our py-3.5 inputs).
-    const box = await email.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
+    await expect
+      .poll(async () => (await email.boundingBox())?.height ?? 0, { timeout: 5000 })
+      .toBeGreaterThanOrEqual(36);
   });
 
   test('landing page has a working signin link', async ({ page }) => {

@@ -357,14 +357,21 @@ export default function PowerFeedClient() {
           )}
 
           {scanError && (
-            <div className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 sm:px-6">
+            // Light: amber-50 over amber-800 reads fine. Dark: same hue would
+            // be near-invisible, so swap to a near-black amber surface with
+            // amber-100 text + a left accent bar so the banner stays loud
+            // either way.
+            <div
+              role="alert"
+              className="flex items-start justify-between gap-3 border-b border-l-4 border-amber-500 border-l-amber-500 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-900 shadow-sm sm:px-6 dark:border-amber-400/40 dark:border-l-amber-400 dark:bg-amber-950/60 dark:text-amber-100"
+            >
               <div className="flex items-start gap-2">
-                <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
                 <span>{scanError}</span>
               </div>
               <button
                 onClick={() => setScanError(null)}
-                className="shrink-0 rounded text-amber-700 hover:text-amber-900"
+                className="shrink-0 rounded p-0.5 text-amber-700 transition hover:bg-amber-100 hover:text-amber-900 dark:text-amber-200 dark:hover:bg-amber-900/40 dark:hover:text-amber-50"
                 aria-label="Dismiss"
               >
                 <IconClose className="h-3.5 w-3.5" />
@@ -762,7 +769,7 @@ function FiltersBody({
           )}
 
           {addError && (
-            <p className="mt-1.5 text-[11px] text-red-600">{addError}</p>
+            <p className="mt-1.5 text-[11px] font-medium text-red-600 dark:text-red-300" role="alert">{addError}</p>
           )}
           {addedHint && !addError && (
             <p className="mt-1.5 text-[11px] text-brand-700">
@@ -1121,7 +1128,10 @@ function StrategyPanel({
         </Card>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] font-medium text-red-800 dark:border-red-500/40 dark:bg-red-950/60 dark:text-red-100"
+          >
             {error}
           </div>
         )}
@@ -1242,7 +1252,7 @@ function FetchPostsButton({ productId }: { productId: string }) {
       >
         Fetch & score posts
       </Button>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs font-medium text-red-600 dark:text-red-300" role="alert">{error}</p>}
     </div>
   );
 }

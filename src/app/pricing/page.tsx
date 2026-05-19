@@ -2,6 +2,16 @@ import Link from "next/link";
 import type { ReactNode, SVGProps } from "react";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { PLANS, type Plan, type PlanKey } from "@/lib/plans";
+import { PlanCheckoutButton } from "./PlanCheckoutButton";
+
+// A plan is "sellable" when its monthly variant ID is configured in env.
+// Plans without a variant render a "Coming soon" button instead of trying
+// to create a checkout that would fail server-side anyway.
+const SELLABLE_PLANS: Record<PlanKey, boolean> = {
+  starter: !!process.env.LEMONSQUEEZY_VARIANT_STARTER_MONTHLY,
+  growth: !!process.env.LEMONSQUEEZY_VARIANT_GROWTH_MONTHLY,
+  pro: !!process.env.LEMONSQUEEZY_VARIANT_PRO_MONTHLY,
+};
 
 export const metadata = {
   title: "Pricing — FindEvo",
@@ -101,7 +111,12 @@ function PlanGrid() {
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
         {PLAN_ORDER.map((key) => (
-          <PlanCard key={key} plan={PLANS[key]} highlighted={key === "growth"} />
+          <PlanCard
+            key={key}
+            plan={PLANS[key]}
+            highlighted={key === "growth"}
+            sellable={SELLABLE_PLANS[key]}
+          />
         ))}
       </div>
       <p className="mt-6 text-center text-xs text-ink-500">
@@ -111,7 +126,15 @@ function PlanGrid() {
   );
 }
 
-function PlanCard({ plan, highlighted }: { plan: Plan; highlighted: boolean }) {
+function PlanCard({
+  plan,
+  highlighted,
+  sellable,
+}: {
+  plan: Plan;
+  highlighted: boolean;
+  sellable: boolean;
+}) {
   const bullets: string[] = [
     plan.limits.subreddits >= 999
       ? "Unlimited tracked subreddits"
@@ -148,16 +171,11 @@ function PlanCard({ plan, highlighted }: { plan: Plan; highlighted: boolean }) {
         <span className="text-sm text-ink-500">/ month</span>
       </div>
 
-      <Link
-        href="/signin"
-        className={
-          "mt-5 justify-center py-2.5 text-sm " +
-          (highlighted ? btnPrimary : btnGhost)
-        }
-      >
-        Start free
-        <ArrowIcon className="ml-1 h-4 w-4" />
-      </Link>
+      <PlanCheckoutButton
+        plan={plan.key}
+        sellable={sellable}
+        variant={highlighted ? "primary" : "ghost"}
+      />
 
       <ul className="mt-6 space-y-2.5 text-sm text-ink-700">
         {bullets.map((b) => (
@@ -290,22 +308,11 @@ function Footer() {
 const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-xl bg-ink-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-ink-800 active:bg-ink-900";
 
-const btnGhost =
-  "inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-surface px-4 py-2 text-sm font-medium text-ink-900 transition hover:border-ink-300 hover:bg-surface-muted";
-
 function Eyebrow({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex items-center rounded-full border border-ink-100 bg-surface px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-ink-600">
       {children}
     </span>
-  );
-}
-
-function ArrowIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M5 12h14M13 5l7 7-7 7" />
-    </svg>
   );
 }
 

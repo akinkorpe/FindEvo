@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import Sidebar from "./Sidebar";
+import { PastDueBanner } from "@/components/billing/PastDueBanner";
 
 type ShellCtx = {
   navOpen: boolean;
@@ -47,7 +48,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ navOpen, openNav, closeNav }}>
       <div className="flex min-h-screen bg-surface-muted">
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <PastDueBanner />
+          {children}
+        </div>
       </div>
     </Ctx.Provider>
   );

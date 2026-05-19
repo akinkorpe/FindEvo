@@ -47,7 +47,7 @@ export default function SettingsClient() {
   const params = useSearchParams();
   const initialTab = (() => {
     const t = params?.get("tab");
-    return t && (VALID_TABS as string[]).includes(t) ? (t as Tab) : "subreddits";
+    return t && (VALID_TABS as string[]).includes(t) ? (t as Tab) : "product";
   })();
 
   const router = useRouter();

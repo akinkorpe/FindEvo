@@ -25,12 +25,24 @@ export function LogoMark({ className = "" }: { className?: string }) {
   );
 }
 
-export function Logo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+export function Logo({
+  size = "md",
+  href = "/landing",
+}: {
+  size?: "sm" | "md" | "lg";
+  /**
+   * Where the wordmark links to. Default is `/landing` so marketing,
+   * signup, and onboarding screens behave like every other site (wordmark
+   * = take-me-home). The sidebar overrides this to `/dashboard` so an
+   * in-app click doesn't bounce a signed-in user out to marketing.
+   */
+  href?: string;
+}) {
   const text =
     size === "sm" ? "text-[15px]" : size === "lg" ? "text-[22px]" : "text-[18px]";
   return (
     <Link
-      href="/onboarding"
+      href={href}
       className={`font-[family-name:var(--font-brand)] tracking-tight text-[#12B886] ${text} transition hover:opacity-80`}
     >
       FindEvo

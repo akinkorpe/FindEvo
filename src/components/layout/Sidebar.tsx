@@ -53,7 +53,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 pt-6">
-        <Logo />
+        <Logo href="/dashboard" />
         {onClose && (
           <button
             type="button"

@@ -86,6 +86,32 @@ export async function resendSignupConfirmation(email: string) {
   });
 }
 
+/**
+ * Send a "reset your password" email to the address. Supabase generates a
+ * single-use token, delivers it via the auth email template, and the link
+ * lands back on /auth/callback?code=… which redirects to /auth/reset-password.
+ *
+ * Returns the raw `{ error }` so the caller can map the message — we never
+ * disclose whether the email exists (Supabase already obscures that by
+ * returning success either way).
+ */
+export async function sendPasswordReset(email: string) {
+  const sb = getSupabaseBrowser();
+  return sb.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
+  });
+}
+
+/**
+ * Set a new password on the currently-authenticated session. Used by the
+ * reset-password page after the user lands there with a Supabase recovery
+ * session active.
+ */
+export async function updatePassword(newPassword: string) {
+  const sb = getSupabaseBrowser();
+  return sb.auth.updateUser({ password: newPassword });
+}
+
 export async function signInWithGoogle(next: string = "/") {
   const sb = getSupabaseBrowser();
   return sb.auth.signInWithOAuth({

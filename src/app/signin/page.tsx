@@ -263,7 +263,7 @@ function SignInInner() {
               right={
                 tab === "signin" ? (
                   <a
-                    href="#"
+                    href="/forgot-password"
                     className="text-[13px] font-medium text-brand-600 hover:text-brand-700"
                   >
                     Forgot password?

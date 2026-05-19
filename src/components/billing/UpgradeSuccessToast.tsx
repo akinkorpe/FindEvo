@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { trackEvent } from "@/lib/posthog";
 
 const AUTO_DISMISS_MS = 6000;
 
@@ -24,6 +25,9 @@ export function UpgradeSuccessToast() {
   useEffect(() => {
     if (!upgraded) return;
     setVisible(true);
+    // Fire here rather than at checkout-start so the funnel measures
+    // *actual* paid completions, not abandoned redirects to LS.
+    trackEvent("checkout_completed");
 
     // Strip the query param so a refresh doesn't show the toast again, and
     // back-nav from a deeper page lands on a clean dashboard URL.

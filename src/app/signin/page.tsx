@@ -13,6 +13,7 @@ import {
   type AuthMode,
   type FieldErrors,
 } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 
 // Cooldown after a resend so the button isn't a free spam machine.
 // 30s is long enough that real users wait, short enough not to feel broken.
@@ -83,15 +84,23 @@ function SignInInner() {
         const { error } = await signInWithPassword(email, password);
         if (error) {
           setFormError(mapAuthError(error.message));
+          trackEvent("signin_failed", { reason: error.message });
           return;
         }
+        trackEvent("signin_completed", { method: "password" });
         window.location.assign(next);
       } else {
         const { data, error } = await signUpWithPassword(email, password);
         if (error) {
           setFormError(mapAuthError(error.message));
+          trackEvent("signup_failed", { reason: error.message });
           return;
         }
+        const emailDomain = email.trim().split("@")[1] ?? null;
+        trackEvent("signup_completed", {
+          email_domain: emailDomain,
+          requires_verification: !data.session,
+        });
         if (data.session) {
           // Confirmations are off → instant session, straight to /.
           window.location.assign(next);

@@ -1,4 +1,5 @@
 import { PLANS, type PlanKey } from "./plans";
+import { trackEvent } from "./posthog";
 
 // Shape of the `planLimit` / `rateLimit` payload our API returns on 429.
 // Re-declared client-side to avoid pulling server-only code into the bundle.
@@ -37,6 +38,17 @@ export function formatPlanLimit(payload: PlanLimitPayload): string {
   if (!meta || meta.max === undefined) {
     return payload.error ?? "You've hit a usage limit on your current plan.";
   }
+
+  // Analytics: emit a single event whenever the user actually saw a
+  // plan-limit message. Placed here so we don't have to dust four
+  // PowerFeedClient callsites — every 429 surface goes through this fn.
+  trackEvent("plan_limit_hit", {
+    plan: meta.plan,
+    limit_kind: meta.kind ?? meta.limit,
+    window: meta.window,
+    used: meta.used,
+    max: meta.max,
+  });
 
   const currentPlanName = meta.plan ? PLANS[meta.plan].name : "your current plan";
   const base = `You've hit the ${currentPlanName} limit (${meta.used ?? meta.max}/${meta.max}${

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Audiowide, Geist, Geist_Mono, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { themeBootstrapScript } from "@/lib/theme";
+import { PostHogProvider } from "@/components/analytics/PostHogProvider";
 import "./globals.css";
 
 const geist = Geist({
@@ -68,7 +70,14 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* PostHog's bootstrap uses useSearchParams which requires a
+            Suspense boundary in App Router. fallback={null} is fine — the
+            provider renders nothing visible anyway. */}
+        <Suspense fallback={null}>
+          <PostHogProvider>{children}</PostHogProvider>
+        </Suspense>
+      </body>
     </html>
   );
 }

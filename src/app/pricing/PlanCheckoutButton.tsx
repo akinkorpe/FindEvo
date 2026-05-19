@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanKey } from "@/lib/plans";
+import { trackEvent } from "@/lib/posthog";
 
 // Beta mode is on until paid plans launch. When this flips to false the
 // signed-in CTA goes back to creating a real checkout.
@@ -85,7 +86,10 @@ export function PlanCheckoutButton({ plan, sellable, variant }: Props) {
     return (
       <button
         type="button"
-        onClick={() => router.push("/signin")}
+        onClick={() => {
+          trackEvent("pricing_cta_clicked", { plan, cta: "start_free" });
+          router.push("/signin");
+        }}
         disabled={auth === "unknown"}
         className={classes(variant)}
       >
@@ -97,9 +101,11 @@ export function PlanCheckoutButton({ plan, sellable, variant }: Props) {
 
   async function handleClick() {
     if (auth === "guest") {
+      trackEvent("pricing_cta_clicked", { plan, cta: "signin_required" });
       router.push(`/signin?next=${encodeURIComponent("/pricing")}`);
       return;
     }
+    trackEvent("checkout_started", { plan });
     setBusy(true);
     setError(null);
     try {
@@ -119,7 +125,9 @@ export function PlanCheckoutButton({ plan, sellable, variant }: Props) {
       }
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed.");
+      const msg = err instanceof Error ? err.message : "Checkout failed.";
+      trackEvent("checkout_failed", { plan, reason: msg });
+      setError(msg);
       setBusy(false);
     }
   }

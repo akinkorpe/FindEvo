@@ -315,15 +315,35 @@ export async function searchSubreddits(
   }
 }
 
+/**
+ * Fetch a subreddit's posted rules.
+ *
+ * The Apify scraper-lite actor we use for posts doesn't return rules, so
+ * `fetchRulesViaApify` would just give us `[]` — and that's what shipped to
+ * production for weeks, making the "Safe to Engage" badge meaningless and
+ * leaving the approach-guide AI rules-blind.
+ *
+ * Reddit's `/about/rules.json` endpoint is much less aggressively rate-
+ * limited than the listings endpoints, so we try it first from every
+ * environment, datacenter IP included. If it returns 403 / 429 / 5xx the
+ * try/catch in `getRuleIntelligence` swallows it into `[]` and we end up in
+ * the same state as before (yellow "Classifier unavailable" badge) — so the
+ * worst case is no regression, and the common case is real rules.
+ */
 export async function fetchRules(subreddit: string): Promise<SubredditRule[]> {
-  if (isApifyConfigured()) return fetchRulesViaApify(subreddit);
   const clean = subreddit.replace(/^r\//i, "");
-  const data = (await publicFetch(
-    `/r/${encodeURIComponent(clean)}/about/rules`,
-  )) as RedditRulesResponse;
-  return (data.rules ?? []).map((r) => ({
-    subreddit: clean,
-    title: r.short_name,
-    description: r.description ?? "",
-  }));
+  try {
+    const data = (await publicFetch(
+      `/r/${encodeURIComponent(clean)}/about/rules`,
+    )) as RedditRulesResponse;
+    return (data.rules ?? []).map((r) => ({
+      subreddit: clean,
+      title: r.short_name,
+      description: r.description ?? "",
+    }));
+  } catch {
+    // Datacenter IP block, transient 5xx, malformed body — collapse to
+    // the historical Apify-path behaviour rather than leaking the error.
+    return fetchRulesViaApify(clean);
+  }
 }

@@ -987,34 +987,35 @@ function StrategyPanel({
     }
   }
 
-  if (!selected) {
-    return (
-      <aside className="hidden h-full min-h-0 w-[420px] shrink-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:flex">
-        <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-500">
-            <IconSparkles className="h-6 w-6" />
-          </span>
-          <h3 className="text-sm font-semibold text-ink-800">
-            Select a post to see strategy
-          </h3>
-          <p className="mt-1.5 max-w-[280px] text-xs text-ink-500">
-            Our AI will analyze the lead and give you a contextual approach —
-            never copy-paste reply text.
-          </p>
-        </div>
-      </aside>
-    );
-  }
+  // We always render the same <aside> element so React keeps it in place
+  // across open/close and the width transition can interpolate between
+  // states. When no post is selected, the panel collapses to width 0 on
+  // xl+ (the breakpoint where it sits inline) — meanwhile the middle
+  // column's flex-1 picks up the freed space in the same frame, so the
+  // feed widens smoothly. On < xl the panel is a fullscreen overlay so
+  // "open/close" just toggles whether it mounts; the width transition
+  // is irrelevant there. The inner content is gated on `selected` so we
+  // don't keep mounting now-stale guide markup off-screen.
+  const isOpen = !!selected;
 
   return (
     <aside
-      // < xl: fullscreen overlay. Height is the dynamic viewport so iOS's
-      // retracting URL bar doesn't push our sticky action bar out of view.
-      // xl+: a 420px right rail inside the Feed's fixed-height shell — we
-      // strip the inline height (replaced with h-full via a class) so the
-      // panel fills its flex parent instead of being viewport-tall.
-      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-y-auto border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
+      aria-hidden={!isOpen}
+      // < xl: fullscreen overlay (hidden entirely when closed).
+      // xl+: a 420px right rail that animates to 0 on close. The
+      // transition runs on width + border-color so the divider also
+      // fades out, avoiding a leftover 1px stripe when collapsed.
+      className={
+        "z-40 flex min-h-0 flex-col overflow-y-auto bg-white transition-[width,border-color] duration-300 ease-out xl:static xl:z-auto xl:h-full xl:shrink-0 " +
+        (isOpen
+          ? "fixed inset-x-0 top-0 h-[100dvh] border-l border-ink-100 xl:w-[420px]"
+          : "hidden h-full w-0 border-transparent xl:flex xl:w-0")
+      }
     >
+      {!selected ? null : (
+        <>
+          {/* All the selected-post-dependent content is gated so accessing
+              selected.post.* below is always safe. */}
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">
           <Badge tone="brand" icon={<IconSparkles className="h-3 w-3" />}>
@@ -1162,6 +1163,8 @@ function StrategyPanel({
           {addedLeadId ? "Added" : "Add to CRM"}
         </Button>
       </div>
+        </>
+      )}
     </aside>
   );
 }

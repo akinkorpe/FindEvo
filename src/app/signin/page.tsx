@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   hasErrors,
   mapAuthError,
+  resendSignupConfirmation,
   signInWithGoogle,
   signInWithPassword,
   signUpWithPassword,
@@ -12,6 +13,10 @@ import {
   type AuthMode,
   type FieldErrors,
 } from "@/lib/auth";
+
+// Cooldown after a resend so the button isn't a free spam machine.
+// 30s is long enough that real users wait, short enough not to feel broken.
+const RESEND_COOLDOWN_S = 30;
 
 export default function SignInPage() {
   return (
@@ -32,6 +37,11 @@ function SignInInner() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // After a successful signup that requires email verification we stop
+  // rendering the form and show a dedicated "check your inbox" panel. The
+  // email is captured here so the panel can quote it back (typo check) and
+  // re-target the resend call.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const queryError = params.get("error");
@@ -45,6 +55,16 @@ function SignInInner() {
 
   function switchTab(next: AuthMode) {
     setTab(next);
+    setErrors({});
+    clearMessages();
+  }
+
+  function startOver() {
+    // Drop the verify-pending state and go back to the signup form so the
+    // user can retype an email if they realise they got it wrong.
+    setPendingEmail(null);
+    setTab("signup");
+    setPassword("");
     setErrors({});
     clearMessages();
   }
@@ -73,11 +93,12 @@ function SignInInner() {
           return;
         }
         if (data.session) {
+          // Confirmations are off → instant session, straight to /.
           window.location.assign(next);
         } else {
-          setInfo(
-            "Account created. Click the verification link we sent to your email.",
-          );
+          // Confirmations are on → email verification required. Switch the
+          // right pane to the inbox-confirmation panel.
+          setPendingEmail(email.trim());
         }
       }
     } catch (err) {
@@ -140,16 +161,33 @@ function SignInInner() {
       {/* RIGHT — light panel */}
       <main className="flex items-center justify-center px-6 py-10 sm:min-h-screen sm:px-10 sm:py-12">
         <div className="w-full max-w-md">
-          <h2 className="text-[28px] font-semibold tracking-tight text-ink-900 sm:text-[34px]">
-            {tab === "signin" ? "Welcome back" : "Create your account"}
-          </h2>
-          <p className="mt-2 text-[15px] text-ink-500">
-            {tab === "signin"
-              ? "Enter your details to continue."
-              : "Takes a few seconds — no credit card required."}
-          </p>
+          {pendingEmail ? (
+            <VerifyEmailPanel email={pendingEmail} onStartOver={startOver} />
+          ) : (
+            <SignInForm />
+          )}
+        </div>
+      </main>
+    </div>
+  );
 
-          {/* Tabs */}
+  // The form is in its own component so the verify-pending state can swap
+  // it out cleanly without dragging form JSX through a giant conditional.
+  // Captures the parent state by closure — that's fine here because there's
+  // exactly one consumer.
+  function SignInForm() {
+    return (
+      <>
+        <h2 className="text-[28px] font-semibold tracking-tight text-ink-900 sm:text-[34px]">
+          {tab === "signin" ? "Welcome back" : "Create your account"}
+        </h2>
+        <p className="mt-2 text-[15px] text-ink-500">
+          {tab === "signin"
+            ? "Enter your details to continue."
+            : "Takes a few seconds — no credit card required."}
+        </p>
+
+        {/* Tabs */}
           <div className="mt-8 grid grid-cols-2 rounded-2xl border border-ink-200 bg-ink-100/60 p-1">
             <button
               type="button"
@@ -280,13 +318,153 @@ function SignInInner() {
               7-day free trial • No credit card required
             </p>
           </form>
+        </>
+      );
+    }
+}
+
+/* ---------- Subcomponents ---------- */
+
+/**
+ * Inbox-confirmation panel shown after a signup that requires email
+ * verification. Tells the user exactly which address we sent the link to
+ * (so typos are catchable), gives them a resend button with a cooldown so
+ * the form isn't a spam relay, and a way back to the signup form if they
+ * realise the email was wrong.
+ */
+function VerifyEmailPanel({
+  email,
+  onStartOver,
+}: {
+  email: string;
+  onStartOver: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_S);
+  const [sending, setSending] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resentAt, setResentAt] = useState<number | null>(null);
+
+  // Tick the cooldown countdown every second. Stops at zero — re-arming
+  // happens when the user clicks the button again.
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const id = setInterval(() => {
+      setSecondsLeft((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [secondsLeft]);
+
+  async function handleResend() {
+    if (secondsLeft > 0 || sending) return;
+    setSending(true);
+    setResendError(null);
+    try {
+      const { error } = await resendSignupConfirmation(email);
+      if (error) {
+        setResendError(mapAuthError(error.message));
+        return;
+      }
+      setResentAt(Date.now());
+      setSecondsLeft(RESEND_COOLDOWN_S);
+    } catch (err) {
+      setResendError(
+        mapAuthError(err instanceof Error ? err.message : undefined),
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const cooldownActive = secondsLeft > 0;
+
+  return (
+    <div>
+      <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-500">
+        <MailIcon className="h-6 w-6" />
+      </div>
+      <h2 className="mt-5 text-[28px] font-semibold tracking-tight text-ink-900 sm:text-[34px]">
+        Check your inbox
+      </h2>
+      <p className="mt-2 text-[15px] leading-relaxed text-ink-600">
+        We sent a verification link to{" "}
+        <span className="font-medium text-ink-900">{email}</span>. Click it to
+        finish signing up — the link expires in 24 hours.
+      </p>
+      <p className="mt-3 text-[13.5px] text-ink-500">
+        Can&apos;t find the email? Check your spam or promotions folder.
+      </p>
+
+      {resentAt && !resendError && (
+        <div
+          role="status"
+          className="mt-6 flex items-start gap-2.5 rounded-2xl border border-brand-500/30 bg-brand-50 px-4 py-3 text-[13.5px] text-brand-700"
+        >
+          <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Verification email sent again.</span>
         </div>
-      </main>
+      )}
+
+      {resendError && (
+        <div
+          role="alert"
+          className="mt-6 flex items-start gap-2.5 rounded-2xl border border-danger-500/30 bg-danger-50 px-4 py-3 text-[13.5px] text-danger-500"
+        >
+          <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{resendError}</span>
+        </div>
+      )}
+
+      <div className="mt-7 space-y-3">
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={cooldownActive || sending}
+          className="inline-flex w-full items-center justify-center rounded-2xl bg-brand-500 px-4 py-3.5 text-[15px] font-semibold text-white shadow-card transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {sending
+            ? "Sending…"
+            : cooldownActive
+              ? `Resend in ${secondsLeft}s`
+              : "Resend verification email"}
+        </button>
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="inline-flex w-full items-center justify-center rounded-2xl border border-ink-200 bg-surface px-4 py-3.5 text-[14px] font-medium text-ink-700 transition hover:bg-surface-muted"
+        >
+          Wrong email? Start over
+        </button>
+      </div>
+
+      <p className="mt-6 text-center text-[13px] text-ink-500">
+        Already verified?{" "}
+        <a
+          href="/signin"
+          className="font-medium text-brand-600 hover:text-brand-700"
+        >
+          Sign in
+        </a>
+      </p>
     </div>
   );
 }
 
-/* ---------- Subcomponents ---------- */
+function MailIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+      <path d="m22 8-10 6L2 8" />
+    </svg>
+  );
+}
 
 function inputCls(hasError: boolean) {
   return (

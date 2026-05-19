@@ -70,6 +70,22 @@ export async function signUpWithPassword(email: string, password: string) {
   });
 }
 
+/**
+ * Re-send the email confirmation link to a pending signup. Used when the
+ * verification email gets lost / goes to spam — without this the user has
+ * no way out of the "click the link" screen.
+ */
+export async function resendSignupConfirmation(email: string) {
+  const sb = getSupabaseBrowser();
+  return sb.auth.resend({
+    type: "signup",
+    email: email.trim(),
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+    },
+  });
+}
+
 export async function signInWithGoogle(next: string = "/") {
   const sb = getSupabaseBrowser();
   return sb.auth.signInWithOAuth({

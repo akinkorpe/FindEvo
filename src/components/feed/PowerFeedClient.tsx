@@ -1006,7 +1006,7 @@ function StrategyPanel({
       // xl+: a 420px right rail inside the Feed's fixed-height shell — we
       // strip the inline height (replaced with h-full via a class) so the
       // panel fills its flex parent instead of being viewport-tall.
-      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
+      className="fixed inset-x-0 top-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-y-auto border-l border-ink-100 bg-white xl:static xl:z-auto xl:h-full xl:w-[420px] xl:shrink-0"
     >
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
         <div className="flex items-center gap-2">
@@ -1025,7 +1025,7 @@ function StrategyPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-5 py-5 pb-10">
+      <div className="space-y-4 px-5 py-5 pb-10">
         <div>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
             Source
@@ -1137,7 +1137,7 @@ function StrategyPanel({
         // pb honors iOS home indicator inset on mobile; the px-5 py-4 fallback
         // still applies because env(safe-area-inset-bottom) is 0 on desktop.
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-        className="flex shrink-0 items-center gap-2 border-t border-ink-100 bg-white px-5 pt-4"
+        className="mt-[5px] flex shrink-0 items-center gap-2 border-t border-ink-100 bg-white px-5 pt-4"
       >
         <Button variant="ghost" className="flex-1" onClick={onClose}>
           Dismiss

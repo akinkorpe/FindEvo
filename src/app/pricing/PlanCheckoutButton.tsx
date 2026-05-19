@@ -1,24 +1,32 @@
 "use client";
 
-// Client-side CTA on the pricing cards. Behaviour:
-//   - signed-out user → /signin (LS checkout requires us to know who they are)
-//   - signed-in + sellable plan → POST /api/checkout/lemonsqueezy → redirect
-//   - plan with no variant configured → disabled "Coming soon"
+// CTA on the pricing cards.
 //
-// The auth check is a single GET to /api/subscription on mount. That endpoint
-// is cheap (returns the user's plan) and already returns 401 for guests, so
-// it doubles as our "are you logged in" probe without a second route.
+// Beta-mode behaviour (current): nobody is sent to Lemon Squeezy. Every
+// account gets the Starter plan for free during the beta — so guests see
+// "Start free" → /signin, and signed-in users see "Current plan" disabled.
+//
+// The checkout API route and webhook handler are still live; we just don't
+// surface a CTA that hits them. Flipping the beta switch off later means
+// turning `BETA_MODE` to false here (and updating the marketing copy on
+// /pricing).
+//
+// Plans without a variant ID configured render "Coming soon" regardless of
+// beta mode — that's the Growth/Pro state until those products exist in LS.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanKey } from "@/lib/plans";
 
+// Beta mode is on until paid plans launch. When this flips to false the
+// signed-in CTA goes back to creating a real checkout.
+const BETA_MODE = true;
+
 interface Props {
   plan: PlanKey;
   /**
-   * Whether a Lemon Squeezy variant ID is configured for this plan. If false,
-   * we render a disabled "Coming soon" button — the only thing the user can
-   * do is wait for us to wire it up.
+   * Whether a Lemon Squeezy variant ID is configured for this plan. False
+   * → render disabled "Coming soon". Independent of beta mode.
    */
   sellable: boolean;
   /** Visual variant — primary (highlighted card) vs ghost (other cards). */
@@ -60,10 +68,35 @@ export function PlanCheckoutButton({ plan, sellable, variant }: Props) {
     );
   }
 
+  // Beta path: every account is on Starter for free, so signed-in users
+  // see a passive "Current plan" state and guests get pushed to signup.
+  if (BETA_MODE) {
+    if (auth === "user") {
+      return (
+        <button
+          type="button"
+          disabled
+          className={`${classes(variant)} cursor-default opacity-70`}
+        >
+          Current plan
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => router.push("/signin")}
+        disabled={auth === "unknown"}
+        className={classes(variant)}
+      >
+        Start free
+        <ArrowIcon className="ml-1 h-4 w-4" />
+      </button>
+    );
+  }
+
   async function handleClick() {
     if (auth === "guest") {
-      // Send them through signin with a hint to come back here. Signin
-      // already handles the next-url param — fall back to /pricing if not.
       router.push(`/signin?next=${encodeURIComponent("/pricing")}`);
       return;
     }

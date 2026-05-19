@@ -100,6 +100,9 @@ function Hero() {
         plan includes intent scoring, approach guides, and subreddit rule
         intelligence — limits just scale with the volume you actually need.
       </p>
+      <p className="mx-auto mt-5 max-w-xl rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-900 sm:mt-6">
+        FindEvo is in beta — every account runs on Starter for free. Paid plans go live with the public release.
+      </p>
     </section>
   );
 }

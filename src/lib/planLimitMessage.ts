@@ -18,26 +18,47 @@ interface PlanLimitPayload {
   rateLimit?: LimitMeta;
 }
 
+// Beta mode is on until paid plans launch. While it's on the upgrade CTA is
+// suppressed everywhere — the message tells the user when their limit resets
+// instead, since they can't actually upgrade today.
+//
+// Keep in sync with the same flag in src/app/pricing/PlanCheckoutButton.tsx.
+const BETA_MODE = true;
+
 /**
  * Build a user-facing message from a 429 response body. Falls back to the
  * server's `error` string if the payload doesn't carry plan metadata.
  *
- * Goal: never just say "Rate limit reached." Say what limit, on what plan,
- * and what upgrading would unlock — that's the whole point of having plans.
+ * Beta mode: tell the user what reset window they're waiting on. Once paid
+ * plans launch (BETA_MODE = false) the message switches to an upgrade CTA.
  */
 export function formatPlanLimit(payload: PlanLimitPayload): string {
   const meta = payload.planLimit ?? payload.rateLimit;
-  if (!meta || !meta.upgradeTo || meta.max === undefined) {
+  if (!meta || meta.max === undefined) {
     return payload.error ?? "You've hit a usage limit on your current plan.";
   }
 
-  const upgradeKey = meta.upgradeTo;
-  const upgradePlan = PLANS[upgradeKey];
   const currentPlanName = meta.plan ? PLANS[meta.plan].name : "your current plan";
+  const base = `You've hit the ${currentPlanName} limit (${meta.used ?? meta.max}/${meta.max}${
+    meta.window ? ` per ${meta.window}` : ""
+  }).`;
 
-  // Try to pull the upgraded cap from PLANS so we can quote a real number
-  // (e.g. "Growth gives you 150/day"). We map the kind/limit field back to
-  // the PlanLimits keys.
+  if (BETA_MODE) {
+    // No upgrade path during the beta. Give the user a useful "wait until"
+    // hint based on the window (day → midnight UTC, month → 1st of next).
+    const reset =
+      meta.window === "day"
+        ? " Resets at midnight UTC."
+        : meta.window === "month"
+          ? " Resets on the 1st of next month."
+          : "";
+    return base + reset;
+  }
+
+  // Paid-mode path: surface the next tier and the concrete cap it unlocks.
+  if (!meta.upgradeTo) return base;
+  const upgradePlan = PLANS[meta.upgradeTo];
+
   const kindToLimitKey: Record<string, keyof typeof upgradePlan.limits> = {
     score_post: "post_score_daily",
     approach_guide: "approach_guide_daily",
@@ -49,9 +70,6 @@ export function formatPlanLimit(payload: PlanLimitPayload): string {
   const upgradedCap =
     limitKey !== undefined ? upgradePlan.limits[limitKey] : undefined;
 
-  const base = `You've hit the ${currentPlanName} limit (${meta.used ?? meta.max}/${meta.max}${
-    meta.window ? ` per ${meta.window}` : ""
-  }).`;
   const upgrade =
     typeof upgradedCap === "number"
       ? ` Upgrade to ${upgradePlan.name} for ${upgradedCap}${
